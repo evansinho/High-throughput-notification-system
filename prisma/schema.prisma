@@ -1,0 +1,86 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  notifications Notification[]
+  events        Event[]
+
+  @@map("users")
+}
+
+// Event model - represents events that trigger notifications
+model Event {
+  id          String   @id @default(cuid())
+  type        String   // e.g., "user.signup", "order.completed", "payment.failed"
+  userId      String
+  payload     Json     // Event-specific data
+  status      String   @default("pending") // pending, processing, completed, failed
+  processedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("events")
+}
+
+// Notification model - represents notifications sent to users
+model Notification {
+  id            String    @id @default(cuid())
+  userId        String
+  eventId       String?
+  channel       String    // email, sms, push, in_app
+  type          String    // notification type/template
+  subject       String?   // for email
+  content       String    // notification content
+  status        String    @default("pending") // pending, sent, delivered, failed, retrying
+  priority      String    @default("normal") // low, normal, high, urgent
+  scheduledFor  DateTime? // for scheduled notifications
+  sentAt        DateTime?
+  deliveredAt   DateTime?
+  failedAt      DateTime?
+  retryCount    Int       @default(0)
+  maxRetries    Int       @default(3)
+  errorMessage  String?
+  metadata      Json?     // additional metadata
+  idempotencyKey String? @unique // for idempotent notification sending
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([eventId])
+  @@index([channel])
+  @@index([status])
+  @@index([priority])
+  @@index([scheduledFor])
+  @@index([createdAt])
+  @@map("notifications")
+}
