@@ -11,6 +11,7 @@ import { RedisModule } from './redis/redis.module';
 import { KafkaModule } from './kafka/kafka.module';
 import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
+import { RATE_LIMIT } from './common/constants';
 
 @Module({
   imports: [
@@ -28,18 +29,18 @@ import { envValidationSchema } from './config/env.validation';
     ThrottlerModule.forRoot([
       {
         name: 'short',
-        ttl: 1000, // 1 second
-        limit: 3, // 3 requests per second
+        ttl: RATE_LIMIT.SHORT.TTL,
+        limit: RATE_LIMIT.SHORT.LIMIT,
       },
       {
         name: 'medium',
-        ttl: 10000, // 10 seconds
-        limit: 20, // 20 requests per 10 seconds
+        ttl: RATE_LIMIT.MEDIUM.TTL,
+        limit: RATE_LIMIT.MEDIUM.LIMIT,
       },
       {
         name: 'long',
-        ttl: 60000, // 1 minute
-        limit: 100, // 100 requests per minute
+        ttl: RATE_LIMIT.LONG.TTL,
+        limit: RATE_LIMIT.LONG.LIMIT,
       },
     ]),
     HealthModule,
