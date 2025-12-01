@@ -35,3 +35,11 @@ coverage
 postgres_data
 redis_data
 /generated/prisma
+
+# Backups
+backups/
+*.sql
+*.sql.gz
+
+# Prisma
+prisma/.env

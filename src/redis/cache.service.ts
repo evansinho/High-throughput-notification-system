@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { RedisService } from './redis.service';
+import { CACHE_TTL } from '../common/constants';
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
@@ -9,7 +10,7 @@ export interface CacheOptions {
 @Injectable()
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
-  private readonly defaultTTL = 3600; // 1 hour
+  private readonly defaultTTL = CACHE_TTL.LONG;
 
   constructor(private readonly redis: RedisService) {}
 
