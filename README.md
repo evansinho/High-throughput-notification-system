@@ -1,127 +1,441 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# 🔔 High-Throughput Notification System
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A production-grade notification system built with NestJS, designed to handle **50,000+ notifications per second**. Features event-driven architecture with Kafka, multi-layer caching with Redis, and PostgreSQL for data persistence.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://coveralls.io/github/nestjs/nest?branch=master" target="_blank"><img src="https://coveralls.io/repos/github/nestjs/nest/badge.svg?branch=master#9" alt="Coverage" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## 📋 Table of Contents
 
-## Description
+- [Features](#features)
+- [Architecture](#architecture)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Development](#development)
+- [Database Management](#database-management)
+- [Configuration](#configuration)
+- [API Documentation](#api-documentation)
+- [Testing](#testing)
+- [Troubleshooting](#troubleshooting)
 
-High-throughput notification system built with NestJS, designed to handle 50,000+ notifications per second. Features event-driven architecture with Kafka, caching with Redis, and PostgreSQL for data persistence.
+## ✨ Features
 
-## Prerequisites
+- **Event-Driven Architecture**: Kafka-based message queuing for asynchronous processing
+- **High-Performance Caching**: Redis with 6 caching patterns (cache-aside, versioned keys, tag-based invalidation)
+- **Rate Limiting**: Multi-tier rate limiting (3/sec, 20/10sec, 100/min)
+- **Type Safety**: Full TypeScript with strict mode enabled
+- **Database**: PostgreSQL with Prisma ORM for type-safe queries
+- **Authentication**: JWT-based auth with Passport
+- **Health Checks**: Built-in health checks for all services
+- **Docker Support**: Complete Docker Compose setup for local development
+- **Message Schemas**: Comprehensive Kafka message schemas with validation
 
-- Node.js 18+
-- Docker & Docker Compose
-- npm or yarn
+## 🏗 Architecture
 
-## Project setup
-
-```bash
-# Install dependencies
-$ npm install
-
-# Copy environment variables
-$ cp .env.example .env
-
-# Start infrastructure services (Postgres, Redis, Kafka)
-$ docker-compose up -d
-
-# Verify all services are healthy
-$ docker-compose ps
+```
+┌─────────────┐      ┌─────────────┐      ┌─────────────┐
+│   Client    │─────▶│  NestJS API │─────▶│   Kafka     │
+└─────────────┘      └─────────────┘      └─────────────┘
+                           │                      │
+                           ▼                      ▼
+                     ┌──────────┐          ┌──────────┐
+                     │  Redis   │          │ Consumer │
+                     │  Cache   │          │ Workers  │
+                     └──────────┘          └──────────┘
+                           │                      │
+                           ▼                      ▼
+                     ┌──────────────────────────────┐
+                     │       PostgreSQL DB          │
+                     └──────────────────────────────┘
 ```
 
-## Infrastructure Services
+## 📦 Prerequisites
 
-The project uses Docker Compose to manage the following services:
+- **Node.js**: 18+ ([Download](https://nodejs.org/))
+- **Docker**: 20+ ([Download](https://www.docker.com/products/docker-desktop))
+- **Docker Compose**: 2.0+ (included with Docker Desktop)
+- **npm** or **yarn**: Latest version
 
-- **PostgreSQL 16**: Primary database (Port 5432)
-- **Redis 7**: Caching layer (Port 6379)
-- **Apache Kafka**: Message broker (Port 9092)
-- **Zookeeper**: Kafka coordination (Port 2181)
-- **Kafka UI**: Web interface for Kafka management (Port 8080)
+## 🚀 Quick Start
 
-Access Kafka UI at: http://localhost:8080
-
-## Compile and run the project
+Get up and running in under 2 minutes:
 
 ```bash
-# development
-$ npm run start
+# 1. Clone the repository
+git clone <repo-url>
+cd notification-system
 
-# watch mode
-$ npm run start:dev
+# 2. Install dependencies
+npm install
 
-# production mode
-$ npm run start:prod
+# 3. Set up environment variables
+cp .env.example .env
+# Edit .env and update JWT_SECRET (minimum 32 characters)
+
+# 4. Start all services (Docker + NestJS)
+npm run dev
 ```
 
-## Run tests
+That's it! The application will be running at `http://localhost:3000`
+
+### What Just Happened?
+
+The `npm run dev` command:
+1. Starts Docker containers (PostgreSQL, Redis, Kafka, Zookeeper, Kafka UI)
+2. Waits for services to be healthy
+3. Starts the NestJS application in watch mode
+
+### Verify Everything Works
 
 ```bash
-# unit tests
-$ npm run test
+# Check health endpoints
+curl http://localhost:3000/health
 
-# e2e tests
-$ npm run test:e2e
+# Check Kafka UI
+open http://localhost:8080
 
-# test coverage
-$ npm run test:cov
+# Check Docker services
+docker-compose ps
 ```
 
-## Deployment
+## 🛠 Development
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Available Scripts
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Docker + NestJS in watch mode (recommended) |
+| `npm run start:dev` | Start NestJS only (requires Docker services running) |
+| `npm run start:prod` | Start in production mode |
+| `npm run build` | Build for production |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Format code with Prettier |
+| `npm run test` | Run unit tests |
+| `npm run test:e2e` | Run end-to-end tests |
+| `npm run test:cov` | Generate test coverage report |
+
+### Docker Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run docker:up` | Start all Docker services |
+| `npm run docker:down` | Stop all Docker services |
+| `npm run docker:logs` | Follow Docker logs |
+| `docker-compose ps` | Check service status |
+| `docker-compose restart <service>` | Restart a specific service |
+
+### Prisma/Database Commands
+
+| Command | Description |
+|---------|-------------|
+| `npm run prisma:generate` | Generate Prisma Client |
+| `npm run prisma:migrate` | Create and apply migration |
+| `npm run prisma:seed` | Seed database with test data |
+| `npx prisma studio` | Open Prisma Studio (DB GUI) |
+
+## 💾 Database Management
+
+### Backup Database
 
 ```bash
-$ npm install -g mau
-$ mau deploy
+# Create a timestamped backup (stored in ./backups)
+npm run db:backup
+
+# Backups are automatically compressed and old backups are cleaned up (keeps last 7)
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Restore Database
 
-## Resources
+```bash
+# List available backups
+ls -lh backups/
 
-Check out a few resources that may come in handy when working with NestJS:
+# Restore from a specific backup
+npm run db:restore backups/notification_db_20231201_120000.sql.gz
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# ⚠️ WARNING: This will delete all existing data!
+```
 
-## Support
+### Manual Database Operations
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+# Connect to PostgreSQL
+docker exec -it notification-postgres psql -U notification_user -d notification_db
 
-## Stay in touch
+# Export schema only
+docker exec -t notification-postgres pg_dump -U notification_user -s notification_db > schema.sql
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+# Reset database (drop and recreate)
+npm run prisma:migrate reset
+```
 
-## License
+## ⚙️ Configuration
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### Environment Variables
+
+The application uses environment variables for configuration. Copy `.env.example` to `.env` and customize:
+
+```bash
+# Application
+NODE_ENV=development
+PORT=3000
+
+# Database
+DATABASE_URL="postgresql://notification_user:notification_password@localhost:5432/notification_db?schema=public"
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# Kafka
+KAFKA_BROKER=localhost:9092
+KAFKA_CLIENT_ID=notification-service
+KAFKA_CONSUMER_GROUP=notification-workers
+
+# JWT (⚠️ Change this to a secure secret!)
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production-minimum-32-characters
+JWT_EXPIRATION=7d
+
+# Feature Flags
+ENABLE_KAFKA_CONSUMER=true
+ENABLE_RATE_LIMITING=true
+```
+
+### Configuration Validation
+
+Environment variables are validated on startup using Joi schema. If any required variable is missing or invalid, the application will fail to start with a clear error message.
+
+## 📚 API Documentation
+
+### Base URL
+```
+http://localhost:3000
+```
+
+### Health Checks
+
+```bash
+# Full health check (all services)
+GET /health
+
+# Liveness check (is app running?)
+GET /health/liveness
+
+# Readiness check (is app ready to serve traffic?)
+GET /health/readiness
+```
+
+### Authentication
+
+```bash
+# Register new user
+POST /auth/register
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "securePassword123",
+  "name": "John Doe"
+}
+
+# Login
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "password": "securePassword123"
+}
+
+# Get current user (protected)
+GET /auth/me
+Authorization: Bearer <token>
+```
+
+### Users
+
+```bash
+# Get all users (with caching)
+GET /users
+
+# First request: hits database
+# Subsequent requests (within 60s): returned from cache
+```
+
+### Testing Rate Limiting
+
+```bash
+# Send 10 requests quickly
+for i in {1..10}; do curl http://localhost:3000/health; done
+
+# You'll hit rate limits:
+# - 3 requests per second
+# - 20 requests per 10 seconds
+# - 100 requests per minute
+```
+
+## 🧪 Testing
+
+### Run Tests
+
+```bash
+# Unit tests
+npm run test
+
+# Watch mode (re-run on file changes)
+npm run test:watch
+
+# Coverage report
+npm run test:cov
+
+# End-to-end tests
+npm run test:e2e
+```
+
+### Manual Testing with curl
+
+```bash
+# Test cache behavior
+curl http://localhost:3000/users  # First hit (DB query)
+curl http://localhost:3000/users  # Second hit (from cache)
+
+# Test authentication
+TOKEN=$(curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"admin123"}' \
+  | jq -r '.access_token')
+
+curl http://localhost:3000/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## 🔧 Troubleshooting
+
+### Port Already in Use
+
+```bash
+# Check what's using port 3000
+lsof -ti:3000
+
+# Kill the process
+kill -9 $(lsof -ti:3000)
+
+# Or use a different port
+PORT=3001 npm run start:dev
+```
+
+### Docker Services Not Starting
+
+```bash
+# Check Docker daemon is running
+docker ps
+
+# Remove all containers and start fresh
+docker-compose down -v
+docker-compose up -d
+
+# Check service logs
+docker-compose logs postgres
+docker-compose logs redis
+docker-compose logs kafka
+```
+
+### Prisma Migration Issues
+
+```bash
+# Reset database (⚠️ deletes all data)
+npm run prisma:migrate reset
+
+# Generate Prisma Client
+npm run prisma:generate
+
+# Apply pending migrations
+npm run prisma:migrate deploy
+```
+
+### Kafka Connection Issues
+
+```bash
+# Check Kafka is running
+docker-compose ps kafka
+
+# Check Kafka logs
+docker-compose logs kafka
+
+# Restart Kafka
+docker-compose restart kafka
+
+# Verify Kafka is accessible
+docker exec -it notification-kafka kafka-topics --list --bootstrap-server localhost:9092
+```
+
+### Redis Connection Issues
+
+```bash
+# Check Redis is running
+docker-compose ps redis
+
+# Test Redis connection
+docker exec -it notification-redis redis-cli ping
+# Should return: PONG
+
+# Flush Redis cache (clears all data)
+docker exec -it notification-redis redis-cli FLUSHALL
+```
+
+### Environment Variable Issues
+
+```bash
+# Validate .env file exists
+test -f .env && echo "✓ .env exists" || echo "✗ .env missing"
+
+# Check required variables
+grep JWT_SECRET .env
+
+# Regenerate from example
+cp .env.example .env
+```
+
+## 📂 Project Structure
+
+```
+notification-system/
+├── src/
+│   ├── auth/              # JWT authentication module
+│   ├── config/            # Environment configuration
+│   ├── health/            # Health check endpoints
+│   ├── kafka/             # Kafka producer & consumer
+│   ├── prisma/            # Prisma service
+│   ├── redis/             # Redis & caching services
+│   ├── app.module.ts      # Root module
+│   └── main.ts            # Application entry point
+├── prisma/
+│   ├── schema.prisma      # Database schema
+│   ├── migrations/        # Database migrations
+│   └── seed.ts            # Seed data
+├── scripts/
+│   ├── db-backup.sh       # Database backup script
+│   └── db-restore.sh      # Database restore script
+├── docker-compose.yml     # Docker services configuration
+├── .env.example           # Environment variables template
+└── package.json           # Dependencies and scripts
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is part of a learning journey for staff engineer skills development.
+
+## 🙏 Acknowledgments
+
+Built with:
+- [NestJS](https://nestjs.com/) - Progressive Node.js framework
+- [Prisma](https://www.prisma.io/) - Next-generation ORM
+- [Kafka](https://kafka.apache.org/) - Distributed event streaming
+- [Redis](https://redis.io/) - In-memory data store
+- [PostgreSQL](https://www.postgresql.org/) - Relational database
