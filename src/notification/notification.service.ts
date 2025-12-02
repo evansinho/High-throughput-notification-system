@@ -1,6 +1,14 @@
 import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import {
+  NotificationMessage,
+  NotificationChannel as KafkaNotificationChannel,
+  NotificationType as KafkaNotificationType,
+  NotificationPriority as KafkaNotificationPriority,
+  NotificationStatus as KafkaNotificationStatus,
+} from '../kafka/schemas/notification.schema';
 import {
   CreateNotificationDto,
   NotificationResponseDto,
@@ -13,10 +21,12 @@ import { randomUUID } from 'crypto';
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
   private readonly IDEMPOTENCY_TTL = 86400; // 24 hours
+  private readonly SCHEMA_VERSION = '1.0.0';
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly kafkaProducer: KafkaProducerService,
   ) {}
 
   /**
@@ -55,6 +65,92 @@ export class NotificationService {
   ): Promise<void> {
     const cacheKey = `idempotency:${idempotencyKey}`;
     await this.redis.set(cacheKey, notificationId, this.IDEMPOTENCY_TTL);
+  }
+
+  /**
+   * Convert notification to Kafka message format with enrichment
+   */
+  private toKafkaMessage(
+    notification: any,
+    dto: CreateNotificationDto,
+  ): NotificationMessage {
+    return {
+      // Metadata
+      id: notification.id,
+      version: this.SCHEMA_VERSION,
+      timestamp: Date.now(),
+      idempotencyKey: notification.idempotencyKey,
+
+      // User information
+      userId: notification.userId,
+      tenantId: notification.tenantId,
+
+      // Notification details
+      type: dto.type as unknown as KafkaNotificationType,
+      channel: dto.channel as unknown as KafkaNotificationChannel,
+      priority: notification.priority as unknown as KafkaNotificationPriority,
+      status: notification.status as unknown as KafkaNotificationStatus,
+
+      // Scheduling
+      scheduledFor: notification.scheduledFor
+        ? new Date(notification.scheduledFor).getTime()
+        : undefined,
+
+      // Content
+      payload: dto.payload as any, // Type will be validated by channel-specific handlers
+
+      // Tracking
+      correlationId: notification.correlationId,
+      causationId: notification.causationId,
+
+      // Retry information
+      retryCount: 0,
+    };
+  }
+
+  /**
+   * Publish notification event to Kafka
+   */
+  private async publishToKafka(message: NotificationMessage): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      await this.kafkaProducer.sendNotification(message);
+
+      const latency = Date.now() - startTime;
+      this.logger.log(
+        `Published notification ${message.id} to Kafka (latency: ${latency}ms, correlationId: ${message.correlationId})`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to publish notification ${message.id} to Kafka:`,
+        error,
+      );
+
+      // Try to send to retry queue as fallback
+      try {
+        await this.kafkaProducer.sendToTopic(
+          'notifications-retry',
+          message.userId,
+          message,
+          {
+            'retry-reason': 'producer-failure',
+            'original-error': (error as Error).message || 'Unknown error',
+            'retry-count': '0',
+          },
+        );
+
+        this.logger.log(
+          `Sent notification ${message.id} to retry queue after producer failure`,
+        );
+      } catch (retryError) {
+        this.logger.error(
+          `Failed to send notification ${message.id} to retry queue:`,
+          retryError,
+        );
+        // Don't throw - notification is already saved in DB
+      }
+    }
   }
 
   /**
@@ -116,6 +212,10 @@ export class NotificationService {
     this.logger.log(
       `Notification created: ${notification.id} (correlationId: ${correlationId})`,
     );
+
+    // Publish to Kafka after DB persistence
+    const kafkaMessage = this.toKafkaMessage(notification, dto);
+    await this.publishToKafka(kafkaMessage);
 
     return this.mapToResponseDto(notification);
   }
