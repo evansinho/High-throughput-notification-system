@@ -167,4 +167,94 @@ export class KafkaConsumerService implements OnModuleInit, OnModuleDestroy {
     await this.consumer.commitOffsets(topicPartitions);
     this.logger.log('Offsets committed manually');
   }
+
+  /**
+   * Get consumer lag metrics for monitoring
+   * Returns the lag (difference between latest offset and committed offset) per partition
+   */
+  async getConsumerLag(): Promise<{
+    totalLag: number;
+    partitionLag: Array<{
+      topic: string;
+      partition: number;
+      lag: number;
+      currentOffset: string;
+      highWatermark: string;
+    }>;
+  }> {
+    try {
+      const admin = this.kafka.admin();
+      await admin.connect();
+
+      const groupId =
+        process.env.KAFKA_CONSUMER_GROUP || 'notification-workers';
+      const topics = ['notifications']; // Hardcoded for now, can be made dynamic
+      const partitionLag: Array<{
+        topic: string;
+        partition: number;
+        lag: number;
+        currentOffset: string;
+        highWatermark: string;
+      }> = [];
+      let totalLag = 0;
+
+      for (const topic of topics) {
+        try {
+          // Get consumer group offsets (committed offsets)
+          const offsets = await admin.fetchOffsets({
+            groupId,
+            topics: [topic],
+          });
+
+          // Get topic high watermarks (latest offsets)
+          const topicOffsets = await admin.fetchTopicOffsets(topic);
+
+          // Calculate lag for each partition
+          for (const offset of offsets) {
+            for (const partitionOffset of offset.partitions) {
+              const partition = partitionOffset.partition;
+              const committed = partitionOffset.offset;
+
+              // Find high watermark for this partition
+              const partitionMeta = topicOffsets.find(
+                (p) => p.partition === partition,
+              );
+
+              if (partitionMeta && committed !== null && committed !== '-1') {
+                const currentOffset = BigInt(committed);
+                const highWatermark = BigInt(partitionMeta.high);
+                const lag = Number(highWatermark - currentOffset);
+
+                partitionLag.push({
+                  topic,
+                  partition,
+                  lag: lag > 0 ? lag : 0,
+                  currentOffset: currentOffset.toString(),
+                  highWatermark: highWatermark.toString(),
+                });
+
+                totalLag += lag > 0 ? lag : 0;
+              }
+            }
+          }
+        } catch (topicError) {
+          this.logger.warn(`Failed to get lag for topic ${topic}:`, topicError);
+        }
+      }
+
+      await admin.disconnect();
+
+      return { totalLag, partitionLag };
+    } catch (error) {
+      this.logger.error('Failed to fetch consumer lag:', error);
+      return { totalLag: -1, partitionLag: [] };
+    }
+  }
+
+  /**
+   * Get consumer for direct access (use with caution)
+   */
+  getConsumer(): Consumer {
+    return this.consumer;
+  }
 }

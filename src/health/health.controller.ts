@@ -5,6 +5,7 @@ import {
   MemoryHealthIndicator,
   DiskHealthIndicator,
 } from '@nestjs/terminus';
+import { NotificationWorkerService } from '../notification/notification-worker.service';
 
 @Controller('health')
 export class HealthController {
@@ -12,6 +13,7 @@ export class HealthController {
     private health: HealthCheckService,
     private memory: MemoryHealthIndicator,
     private disk: DiskHealthIndicator,
+    private workerService: NotificationWorkerService,
   ) {}
 
   @Get()
@@ -42,5 +44,16 @@ export class HealthController {
     return this.health.check([
       () => this.memory.checkHeap('memory_heap', 150 * 1024 * 1024),
     ]);
+  }
+
+  @Get('worker')
+  async workerHealth() {
+    const metrics = await this.workerService.getHealthMetrics();
+
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      worker: metrics,
+    };
   }
 }

@@ -1,9 +1,10 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
+  const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
   // Global validation pipe
@@ -24,6 +25,27 @@ async function bootstrap() {
   // Enable CORS
   app.enableCors();
 
-  await app.listen(process.env.PORT ?? 3000);
+  // Enable graceful shutdown hooks
+  app.enableShutdownHooks();
+
+  // Handle SIGTERM signal (e.g., from Docker, Kubernetes)
+  process.on('SIGTERM', async () => {
+    logger.log('SIGTERM signal received: gracefully shutting down...');
+    await app.close();
+    logger.log('Application closed successfully');
+    process.exit(0);
+  });
+
+  // Handle SIGINT signal (e.g., Ctrl+C)
+  process.on('SIGINT', async () => {
+    logger.log('SIGINT signal received: gracefully shutting down...');
+    await app.close();
+    logger.log('Application closed successfully');
+    process.exit(0);
+  });
+
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
+  logger.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();
