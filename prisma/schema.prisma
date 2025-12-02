@@ -50,37 +50,44 @@ model Event {
 
 // Notification model - represents notifications sent to users
 model Notification {
-  id            String    @id @default(cuid())
-  userId        String
-  eventId       String?
-  channel       String    // email, sms, push, in_app
-  type          String    // notification type/template
-  subject       String?   // for email
-  content       String    // notification content
-  status        String    @default("pending") // pending, sent, delivered, failed, retrying
-  priority      String    @default("normal") // low, normal, high, urgent
-  scheduledFor  DateTime? // for scheduled notifications
-  sentAt        DateTime?
-  deliveredAt   DateTime?
-  failedAt      DateTime?
-  retryCount    Int       @default(0)
-  maxRetries    Int       @default(3)
-  errorMessage  String?
-  metadata      Json?     // additional metadata
-  idempotencyKey String? @unique // for idempotent notification sending
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  userId          String
+  tenantId        String?   // for multi-tenancy
+  eventId         String?
+  channel         String    // email, sms, push, in_app, webhook
+  type            String    // notification type: TRANSACTIONAL, MARKETING, SYSTEM, ALERT
+  subject         String?   // for email
+  content         String?   // deprecated - use payload instead
+  payload         Json?     // channel-specific payload (email, sms, push, webhook)
+  status          String    @default("PENDING") // PENDING, PROCESSING, SENT, FAILED, SCHEDULED
+  priority        String    @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  scheduledFor    DateTime? // for scheduled notifications
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  failedAt        DateTime?
+  retryCount      Int       @default(0)
+  maxRetries      Int       @default(3)
+  errorMessage    String?
+  metadata        Json?     // additional metadata
+  idempotencyKey  String?   @unique // for idempotent notification sending
+  correlationId   String?   // for distributed tracing
+  causationId     String?   // for event sourcing
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   // Relations
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([userId])
+  @@index([tenantId])
   @@index([eventId])
   @@index([channel])
+  @@index([type])
   @@index([status])
   @@index([priority])
   @@index([scheduledFor])
   @@index([createdAt])
+  @@index([correlationId])
   @@map("notifications")
 }
