@@ -6,6 +6,7 @@ import {
   DiskHealthIndicator,
 } from '@nestjs/terminus';
 import { NotificationWorkerService } from '../notification/notification-worker.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Controller('health')
 export class HealthController {
@@ -14,6 +15,7 @@ export class HealthController {
     private memory: MemoryHealthIndicator,
     private disk: DiskHealthIndicator,
     private workerService: NotificationWorkerService,
+    private prisma: PrismaService,
   ) {}
 
   @Get()
@@ -54,6 +56,21 @@ export class HealthController {
       status: 'ok',
       timestamp: new Date().toISOString(),
       worker: metrics,
+    };
+  }
+
+  @Get('database')
+  async databaseHealth() {
+    const isHealthy = await this.prisma.healthCheck();
+    const poolMetrics = await this.prisma.getPoolMetrics();
+
+    return {
+      status: isHealthy ? 'ok' : 'error',
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: isHealthy,
+        pool: poolMetrics,
+      },
     };
   }
 }
