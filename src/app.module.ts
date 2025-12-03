@@ -12,6 +12,8 @@ import { KafkaModule } from './kafka/kafka.module';
 import { NotificationModule } from './notification/notification.module';
 import { JobsModule } from './jobs/jobs.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { AdminModule } from './admin/admin.module';
+import { DataPipelineModule } from './data-pipeline/data-pipeline.module';
 import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { RATE_LIMIT } from './common/constants';
@@ -51,6 +53,8 @@ import { RATE_LIMIT } from './common/constants';
     NotificationModule,
     JobsModule,
     IntegrationsModule,
+    AdminModule,
+    DataPipelineModule,
   ],
   controllers: [AppController],
   providers: [

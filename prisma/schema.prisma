@@ -16,6 +16,7 @@ model User {
   email     String   @unique
   name      String
   password  String
+  role      String   @default("USER") // USER, ADMIN
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -107,4 +108,77 @@ model Notification {
   @@index([correlationId, createdAt]) // Trace requests by correlation ID
 
   @@map("notifications")
+}
+
+// ArchivedNotification model - for cold storage of old notifications
+model ArchivedNotification {
+  id              String   @id @default(cuid())
+  originalId      String   @unique // reference to original notification ID
+  userId          String
+  tenantId        String?
+  eventId         String?
+  channel         String
+  type            String
+  subject         String?
+  payload         Json?
+  status          String
+  priority        String
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  failedAt        DateTime?
+  retryCount      Int
+  maxRetries      Int
+  errorMessage    String?
+  metadata        Json?
+  idempotencyKey  String?
+  correlationId   String?
+  causationId     String?
+  createdAt       DateTime
+  updatedAt       DateTime
+  archivedAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([archivedAt])
+  @@index([createdAt])
+  @@map("archived_notifications")
+}
+
+// ArchivedEvent model - for cold storage of old events
+model ArchivedEvent {
+  id          String    @id @default(cuid())
+  originalId  String    @unique // reference to original event ID
+  type        String
+  userId      String
+  payload     Json
+  status      String
+  processedAt DateTime?
+  createdAt   DateTime
+  updatedAt   DateTime
+  archivedAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([archivedAt])
+  @@index([createdAt])
+  @@map("archived_events")
+}
+
+// AuditLog model - tracks all admin actions
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String   // admin who performed the action
+  userEmail   String   // for easy reference
+  action      String   // e.g., "notification.retry", "user.role.update", "data.export"
+  resourceType String?  // e.g., "notification", "user", "system"
+  resourceId  String?  // ID of the affected resource
+  details     Json?    // additional details about the action
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

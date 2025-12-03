@@ -17,15 +17,34 @@ A production-grade notification system built with NestJS, designed to handle **5
 
 ## ✨ Features
 
+### Core Infrastructure
 - **Event-Driven Architecture**: Kafka-based message queuing for asynchronous processing
 - **High-Performance Caching**: Redis with 6 caching patterns (cache-aside, versioned keys, tag-based invalidation)
 - **Rate Limiting**: Multi-tier rate limiting (3/sec, 20/10sec, 100/min)
 - **Type Safety**: Full TypeScript with strict mode enabled
 - **Database**: PostgreSQL with Prisma ORM for type-safe queries
-- **Authentication**: JWT-based auth with Passport
+- **Authentication**: JWT-based auth with Passport + role-based access control (RBAC)
 - **Health Checks**: Built-in health checks for all services
 - **Docker Support**: Complete Docker Compose setup for local development
 - **Message Schemas**: Comprehensive Kafka message schemas with validation
+
+### Advanced Features (Week 4)
+- **External Integrations**: SendGrid (email), Twilio (SMS), Firebase Cloud Messaging (push)
+  - Smart provider selection with automatic fallback to mock services
+  - Webhook handlers for delivery status tracking
+- **Admin Dashboard**: 8 protected endpoints for system management
+  - System metrics, Kafka queue stats, notification search
+  - Manual retry for failed notifications, DLQ viewing
+  - User management with role assignment
+- **Data Pipeline**: Automated data lifecycle management
+  - Archival service (90-day retention for notifications, 1-year for events)
+  - Data export to CSV/JSON (notifications, events, audit logs)
+  - Audit logging (track all admin actions with IP, user agent)
+  - GDPR-compliant anonymization (right to be forgotten)
+- **Background Jobs**: Scheduled tasks via cron
+  - Daily archival at 2 AM UTC
+  - Cleanup jobs, cache warming, monitoring
+  - Distributed locking for multi-instance environments
 
 ## 🏗 Architecture
 
@@ -270,6 +289,74 @@ for i in {1..10}; do curl http://localhost:3000/health; done
 # - 3 requests per second
 # - 20 requests per 10 seconds
 # - 100 requests per minute
+```
+
+### Admin Endpoints (Requires ADMIN Role)
+
+```bash
+# Get system metrics
+GET /admin/metrics
+Authorization: Bearer <admin-token>
+
+# Get Kafka queue statistics
+GET /admin/queue/stats
+Authorization: Bearer <admin-token>
+
+# Search notifications (with filters)
+GET /admin/notifications?status=FAILED&from=2025-01-01&limit=50
+Authorization: Bearer <admin-token>
+
+# Manual retry for failed notification
+POST /admin/notifications/:id/retry
+Authorization: Bearer <admin-token>
+
+# View dead letter queue
+GET /admin/dlq?page=1&limit=50
+Authorization: Bearer <admin-token>
+
+# List all users with roles
+GET /admin/users?page=1&limit=50
+Authorization: Bearer <admin-token>
+
+# Get dashboard summary data
+GET /admin/dashboard
+Authorization: Bearer <admin-token>
+```
+
+### Data Pipeline Endpoints (Requires ADMIN Role)
+
+```bash
+# Run manual archival
+POST /data-pipeline/archive
+Authorization: Bearer <admin-token>
+
+# Get archival statistics
+GET /data-pipeline/archive/stats
+Authorization: Bearer <admin-token>
+
+# Export notifications to CSV
+GET /data-pipeline/export/notifications?format=csv&from=2025-01-01
+Authorization: Bearer <admin-token>
+
+# Export events to JSON
+GET /data-pipeline/export/events?format=json&userId=user123
+Authorization: Bearer <admin-token>
+
+# Query audit logs
+GET /data-pipeline/audit-logs?action=data.export&page=1
+Authorization: Bearer <admin-token>
+
+# Get audit log statistics
+GET /data-pipeline/audit-logs/stats?from=2025-01-01
+Authorization: Bearer <admin-token>
+
+# Anonymize user data (GDPR)
+DELETE /data-pipeline/anonymize/:userId
+Authorization: Bearer <admin-token>
+
+# Get anonymization statistics
+GET /data-pipeline/anonymization/stats
+Authorization: Bearer <admin-token>
 ```
 
 ## 🧪 Testing
