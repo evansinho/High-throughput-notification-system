@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CleanupService } from './cleanup.service';
 import { MonitoringService } from './monitoring.service';
+import { ArchivalJob } from './archival.job';
 import { JobsController } from './jobs.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { KafkaModule } from '../kafka/kafka.module';
+import { DataPipelineModule } from '../data-pipeline/data-pipeline.module';
 
 /**
  * JobsModule - Scheduled background jobs
@@ -16,6 +18,7 @@ import { KafkaModule } from '../kafka/kafka.module';
  * - Data cleanup and maintenance
  * - System health monitoring
  * - Performance tracking and reporting
+ * - Daily archival (notifications, events)
  */
 @Module({
   imports: [
@@ -23,9 +26,10 @@ import { KafkaModule } from '../kafka/kafka.module';
     PrismaModule,
     RedisModule,
     KafkaModule,
+    DataPipelineModule,
   ],
   controllers: [JobsController],
-  providers: [CleanupService, MonitoringService],
-  exports: [CleanupService, MonitoringService],
+  providers: [CleanupService, MonitoringService, ArchivalJob],
+  exports: [CleanupService, MonitoringService, ArchivalJob],
 })
 export class JobsModule {}
