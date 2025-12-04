@@ -2,6 +2,7 @@ import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { TracingService } from '../common/tracing/tracing.service';
 import {
   NotificationMessage,
   NotificationChannel as KafkaNotificationChannel,
@@ -27,6 +28,7 @@ export class NotificationService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly kafkaProducer: KafkaProducerService,
+    private readonly tracing: TracingService,
   ) {}
 
   /**
@@ -157,67 +159,110 @@ export class NotificationService {
    * Create a new notification
    */
   async create(dto: CreateNotificationDto): Promise<NotificationResponseDto> {
-    // Generate correlation ID if not provided
-    const correlationId = dto.correlationId || this.generateCorrelationId();
+    return await this.tracing.withSpan(
+      'NotificationService.create',
+      async (span) => {
+        // Generate correlation ID if not provided
+        const correlationId = dto.correlationId || this.generateCorrelationId();
 
-    // Generate idempotency key if not provided (using userId + timestamp as fallback)
-    const idempotencyKey =
-      dto.idempotencyKey || `${dto.userId}-${Date.now()}-${randomUUID()}`;
+        // Add span attributes for tracing
+        span.setAttributes({
+          'notification.userId': dto.userId,
+          'notification.tenantId': dto.tenantId,
+          'notification.channel': dto.channel,
+          'notification.type': dto.type,
+          'notification.priority': dto.priority || 'MEDIUM',
+          'correlationId': correlationId,
+        });
 
-    // Check idempotency
-    const existingNotificationId = await this.checkIdempotency(idempotencyKey);
-    if (existingNotificationId) {
-      // Return existing notification
-      const existingNotification = await this.prisma.notification.findUnique({
-        where: { id: existingNotificationId },
-      });
+        // Generate idempotency key if not provided (using userId + timestamp as fallback)
+        const idempotencyKey =
+          dto.idempotencyKey || `${dto.userId}-${Date.now()}-${randomUUID()}`;
 
-      if (!existingNotification) {
-        throw new ConflictException(
-          'Duplicate request detected but notification not found',
+        // Check idempotency with custom span
+        const existingNotificationId = await this.tracing.withSpan(
+          'checkIdempotency',
+          async () => await this.checkIdempotency(idempotencyKey),
+          { idempotencyKey },
         );
-      }
 
-      return this.mapToResponseDto(existingNotification);
-    }
+        if (existingNotificationId) {
+          span.addEvent('duplicate_request_detected', { existingNotificationId });
 
-    // Determine status based on scheduledFor
-    const status = dto.scheduledFor
-      ? NotificationStatus.SCHEDULED
-      : NotificationStatus.PENDING;
+          // Return existing notification
+          const existingNotification = await this.prisma.notification.findUnique({
+            where: { id: existingNotificationId },
+          });
 
-    // Set default priority if not provided
-    const priority = dto.priority || NotificationPriority.MEDIUM;
+          if (!existingNotification) {
+            throw new ConflictException(
+              'Duplicate request detected but notification not found',
+            );
+          }
 
-    // Create notification in database
-    const notification = await this.prisma.notification.create({
-      data: {
-        userId: dto.userId,
-        tenantId: dto.tenantId,
-        type: dto.type,
-        channel: dto.channel,
-        status,
-        priority,
-        payload: dto.payload as any, // Prisma stores JSON
-        content: JSON.stringify(dto.payload), // deprecated field - keep for backward compatibility
-        scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : null,
-        idempotencyKey,
-        correlationId,
+          return this.mapToResponseDto(existingNotification);
+        }
+
+        // Determine status based on scheduledFor
+        const status = dto.scheduledFor
+          ? NotificationStatus.SCHEDULED
+          : NotificationStatus.PENDING;
+
+        // Set default priority if not provided
+        const priority = dto.priority || NotificationPriority.MEDIUM;
+
+        // Create notification in database with custom span
+        const notification = await this.tracing.withSpan(
+          'db.createNotification',
+          async () =>
+            await this.prisma.notification.create({
+              data: {
+                userId: dto.userId,
+                tenantId: dto.tenantId,
+                type: dto.type,
+                channel: dto.channel,
+                status,
+                priority,
+                payload: dto.payload as any, // Prisma stores JSON
+                content: JSON.stringify(dto.payload), // deprecated field - keep for backward compatibility
+                scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : null,
+                idempotencyKey,
+                correlationId,
+              },
+            }),
+          { 'db.operation': 'INSERT', 'db.table': 'notification' },
+        );
+
+        span.setAttributes({
+          'notification.id': notification.id,
+        });
+
+        // Store idempotency key in Redis
+        await this.storeIdempotency(idempotencyKey, notification.id);
+
+        this.logger.log(
+          `Notification created: ${notification.id} (correlationId: ${correlationId})`,
+        );
+
+        // Publish to Kafka after DB persistence with custom span
+        const kafkaMessage = this.toKafkaMessage(notification, dto);
+        await this.tracing.withSpan(
+          'kafka.publishNotification',
+          async () => await this.publishToKafka(kafkaMessage),
+          {
+            'messaging.system': 'kafka',
+            'messaging.destination': 'notifications',
+            'messaging.message_id': kafkaMessage.id,
+          },
+        );
+
+        return this.mapToResponseDto(notification);
       },
-    });
-
-    // Store idempotency key in Redis
-    await this.storeIdempotency(idempotencyKey, notification.id);
-
-    this.logger.log(
-      `Notification created: ${notification.id} (correlationId: ${correlationId})`,
+      {
+        'service.name': 'notification-service',
+        'span.kind': 'server',
+      },
     );
-
-    // Publish to Kafka after DB persistence
-    const kafkaMessage = this.toKafkaMessage(notification, dto);
-    await this.publishToKafka(kafkaMessage);
-
-    return this.mapToResponseDto(notification);
   }
 
   /**

@@ -46,6 +46,21 @@ A production-grade notification system built with NestJS, designed to handle **5
   - Cleanup jobs, cache warming, monitoring
   - Distributed locking for multi-instance environments
 
+### Observability (Week 5)
+- **Structured Logging**: Pino-based JSON logging with correlation IDs
+  - Log sampling (10% info/debug, 100% errors/warnings)
+  - Correlation ID middleware for distributed tracing
+  - Pretty printing in development, structured JSON in production
+  - Child loggers for request-scoped logging
+  - ISO timestamps with log levels (trace, debug, info, warn, error, fatal)
+- **Distributed Tracing**: OpenTelemetry with Jaeger
+  - Automatic instrumentation for HTTP, Express, and Kafka
+  - Custom spans for key operations (DB queries, Kafka publish/consume)
+  - Span attributes (userId, tenantId, notificationId, correlationId)
+  - Trace context propagation across services
+  - Jaeger UI for visualizing end-to-end traces
+  - Performance analysis with span timings
+
 ## 🏗 Architecture
 
 ```
