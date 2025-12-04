@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -14,6 +14,9 @@ import { JobsModule } from './jobs/jobs.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { AdminModule } from './admin/admin.module';
 import { DataPipelineModule } from './data-pipeline/data-pipeline.module';
+import { TracingModule } from './common/tracing/tracing.module';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { LoggerService } from './common/logger/logger.service';
 import configuration from './config/configuration';
 import { envValidationSchema } from './config/env.validation';
 import { RATE_LIMIT } from './common/constants';
@@ -28,6 +31,7 @@ import { RATE_LIMIT } from './common/constants';
         abortEarly: true, // Stop on first error
       },
     }),
+    TracingModule,
     PrismaModule,
     RedisModule,
     KafkaModule,
@@ -59,10 +63,15 @@ import { RATE_LIMIT } from './common/constants';
   controllers: [AppController],
   providers: [
     AppService,
+    LoggerService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}
