@@ -58,8 +58,16 @@ A production-grade notification system built with NestJS, designed to handle **5
   - Custom spans for key operations (DB queries, Kafka publish/consume)
   - Span attributes (userId, tenantId, notificationId, correlationId)
   - Trace context propagation across services
-  - Jaeger UI for visualizing end-to-end traces
+  - Jaeger UI for visualizing end-to-end traces (port 16686)
   - Performance analysis with span timings
+- **Metrics & Monitoring**: Prometheus + Grafana
+  - Four Golden Signals (Latency, Traffic, Errors, Saturation)
+  - Custom business metrics (notifications total, failed, by channel/priority)
+  - Kafka metrics (messages published/consumed, consumer lag)
+  - Database metrics (query duration, active connections, errors)
+  - Cache metrics (hits/misses, operation duration)
+  - Prometheus scraping endpoint at /metrics
+  - Grafana dashboards (port 3001, admin/admin)
 
 ## 🏗 Architecture
 

@@ -15,6 +15,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { AdminModule } from './admin/admin.module';
 import { DataPipelineModule } from './data-pipeline/data-pipeline.module';
 import { TracingModule } from './common/tracing/tracing.module';
+import { MetricsModule } from './common/metrics/metrics.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { LoggerService } from './common/logger/logger.service';
 import configuration from './config/configuration';
@@ -32,6 +33,7 @@ import { RATE_LIMIT } from './common/constants';
       },
     }),
     TracingModule,
+    MetricsModule,
     PrismaModule,
     RedisModule,
     KafkaModule,
