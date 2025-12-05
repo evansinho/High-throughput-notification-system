@@ -2,6 +2,10 @@ global:
   scrape_interval: 15s # Scrape targets every 15 seconds
   evaluation_interval: 15s # Evaluate rules every 15 seconds
 
+# Alert rule files
+rule_files:
+  - '/etc/prometheus/alert-rules.yml'
+
 # Scrape configuration
 scrape_configs:
   # Notification System API
