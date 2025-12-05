@@ -68,6 +68,12 @@ A production-grade notification system built with NestJS, designed to handle **5
   - Cache metrics (hits/misses, operation duration)
   - Prometheus scraping endpoint at /metrics
   - Grafana dashboards (port 3001, admin/admin)
+- **Alerting**: Prometheus alerting with severity levels
+  - P0-P3 severity classification (Critical, High, Medium, Low)
+  - 13 alert rules covering all critical scenarios
+  - Comprehensive runbooks for each alert
+  - Alerts for: high failure rate, service down, high latency, Kafka lag, DB issues, cache performance
+  - Auto-evaluation every 15 seconds
 
 ## 🏗 Architecture
 

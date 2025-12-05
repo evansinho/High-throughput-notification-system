@@ -4,7 +4,13 @@ import {
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { Kafka, Producer, ProducerRecord, RecordMetadata } from 'kafkajs';
+import {
+  Kafka,
+  Producer,
+  ProducerRecord,
+  RecordMetadata,
+  CompressionTypes,
+} from 'kafkajs';
 import { NotificationMessage } from './schemas/notification.schema';
 
 @Injectable()
@@ -41,6 +47,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Send a single notification message to Kafka
+   * Optimized with GZIP compression for reduced network bandwidth
    */
   async sendNotification(
     message: NotificationMessage,
@@ -48,6 +55,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     try {
       const record: ProducerRecord = {
         topic: 'notifications',
+        compression: CompressionTypes.GZIP, // Enable compression for bandwidth optimization
         messages: [
           {
             key: message.userId, // Partition by userId for ordering
@@ -74,6 +82,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Send multiple notifications in batch (more efficient)
+   * Optimized with GZIP compression for reduced network bandwidth
    */
   async sendNotificationBatch(
     messages: NotificationMessage[],
@@ -81,6 +90,7 @@ export class KafkaProducerService implements OnModuleInit, OnModuleDestroy {
     try {
       const record: ProducerRecord = {
         topic: 'notifications',
+        compression: CompressionTypes.GZIP, // Enable compression for bandwidth optimization
         messages: messages.map((msg) => ({
           key: msg.userId,
           value: JSON.stringify(msg),

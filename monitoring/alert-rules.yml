@@ -1,0 +1,174 @@
+groups:
+  # P0 - Critical: Page immediately, system is down or severely degraded
+  - name: p0_critical_alerts
+    interval: 30s
+    rules:
+      - alert: HighNotificationFailureRate
+        expr: |
+          (
+            rate(notifications_failed_total[5m]) /
+            rate(notifications_total[5m])
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: P0
+          team: platform
+        annotations:
+          summary: "High notification failure rate ({{ $value | humanizePercentage }})"
+          description: "More than 5% of notifications are failing for {{ $labels.channel }}"
+          runbook_url: "https://runbooks.example.com/high-notification-failure-rate"
+
+      - alert: ServiceDown
+        expr: up{job="notification-system"} == 0
+        for: 1m
+        labels:
+          severity: P0
+          team: platform
+        annotations:
+          summary: "Notification system is down"
+          description: "The notification system has been unreachable for 1 minute"
+          runbook_url: "https://runbooks.example.com/service-down"
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_request_errors_total[5m]) /
+            rate(http_requests_total[5m])
+          ) > 0.10
+        for: 2m
+        labels:
+          severity: P0
+          team: platform
+        annotations:
+          summary: "High HTTP error rate ({{ $value | humanizePercentage }})"
+          description: "More than 10% of HTTP requests are failing"
+          runbook_url: "https://runbooks.example.com/high-error-rate"
+
+  # P1 - High: Page during business hours, significant impact
+  - name: p1_high_alerts
+    interval: 1m
+    rules:
+      - alert: HighKafkaConsumerLag
+        expr: kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: P1
+          team: platform
+        annotations:
+          summary: "High Kafka consumer lag ({{ $value }} messages)"
+          description: "Kafka consumer lag is above 1000 messages for topic {{ $labels.topic }}"
+          runbook_url: "https://runbooks.example.com/high-kafka-lag"
+
+      - alert: HighP95Latency
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 1
+        for: 5m
+        labels:
+          severity: P1
+          team: platform
+        annotations:
+          summary: "High P95 latency ({{ $value }}s)"
+          description: "95th percentile request latency is above 1 second"
+          runbook_url: "https://runbooks.example.com/high-latency"
+
+      - alert: DatabaseConnectionPoolExhausted
+        expr: db_connections_active > 90
+        for: 3m
+        labels:
+          severity: P1
+          team: platform
+        annotations:
+          summary: "Database connection pool near exhaustion ({{ $value }} active)"
+          description: "Database has more than 90 active connections"
+          runbook_url: "https://runbooks.example.com/db-connection-pool"
+
+  # P2 - Medium: Address within 24 hours, noticeable impact
+  - name: p2_medium_alerts
+    interval: 2m
+    rules:
+      - alert: ElevatedNotificationFailureRate
+        expr: |
+          (
+            rate(notifications_failed_total[10m]) /
+            rate(notifications_total[10m])
+          ) > 0.02
+        for: 10m
+        labels:
+          severity: P2
+          team: platform
+        annotations:
+          summary: "Elevated notification failure rate ({{ $value | humanizePercentage }})"
+          description: "Notification failure rate is above 2% for {{ $labels.channel }}"
+          runbook_url: "https://runbooks.example.com/elevated-failure-rate"
+
+      - alert: LowCacheHitRate
+        expr: |
+          (
+            rate(cache_hits_total[10m]) /
+            (rate(cache_hits_total[10m]) + rate(cache_misses_total[10m]))
+          ) < 0.70
+        for: 15m
+        labels:
+          severity: P2
+          team: platform
+        annotations:
+          summary: "Low cache hit rate ({{ $value | humanizePercentage }})"
+          description: "Cache hit rate is below 70%"
+          runbook_url: "https://runbooks.example.com/low-cache-hit-rate"
+
+      - alert: HighDatabaseQueryLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(db_query_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: P2
+          team: platform
+        annotations:
+          summary: "High database query latency ({{ $value }}s)"
+          description: "95th percentile DB query latency is above 500ms"
+          runbook_url: "https://runbooks.example.com/high-db-latency"
+
+  # P3 - Low: Log only, minimal impact
+  - name: p3_low_alerts
+    interval: 5m
+    rules:
+      - alert: ModerateTrafficIncrease
+        expr: |
+          rate(http_requests_total[5m]) >
+          (
+            avg_over_time(rate(http_requests_total[5m])[1h:5m]) * 1.5
+          )
+        for: 15m
+        labels:
+          severity: P3
+          team: platform
+        annotations:
+          summary: "Traffic increase detected ({{ $value }} req/s)"
+          description: "HTTP traffic is 50% above normal levels"
+          runbook_url: "https://runbooks.example.com/traffic-increase"
+
+      - alert: KafkaPublishErrors
+        expr: rate(kafka_publish_errors_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: P3
+          team: platform
+        annotations:
+          summary: "Kafka publish errors detected"
+          description: "Errors publishing to Kafka topic {{ $labels.topic }}"
+          runbook_url: "https://runbooks.example.com/kafka-publish-errors"
+
+      - alert: DatabaseQueryErrors
+        expr: rate(db_query_errors_total[10m]) > 0.01
+        for: 10m
+        labels:
+          severity: P3
+          team: platform
+        annotations:
+          summary: "Database query errors detected"
+          description: "Database errors for operation {{ $labels.operation }}"
+          runbook_url: "https://runbooks.example.com/db-query-errors"
