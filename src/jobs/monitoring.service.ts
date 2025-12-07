@@ -99,8 +99,8 @@ export class MonitoringService {
 
     // Log warning if any service is unhealthy
     const unhealthyServices = Object.entries(results.services)
-      .filter(([_, service]) => service.status === 'unhealthy')
-      .map(([name, _]) => name);
+      .filter(([, service]) => service.status === 'unhealthy')
+      .map(([name]) => name);
 
     if (unhealthyServices.length > 0) {
       this.logger.warn(

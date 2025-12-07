@@ -29,7 +29,8 @@ export class TracingService implements OnModuleInit {
   constructor() {
     // Configure Jaeger exporter
     const jaegerExporter = new JaegerExporter({
-      endpoint: process.env.JAEGER_ENDPOINT || 'http://localhost:14268/api/traces',
+      endpoint:
+        process.env.JAEGER_ENDPOINT || 'http://localhost:14268/api/traces',
     });
 
     // Initialize OpenTelemetry SDK
@@ -137,8 +138,9 @@ export class TracingService implements OnModuleInit {
   /**
    * Extract trace context from carrier (e.g., Kafka headers)
    */
-  extractContext(_carrier: any): Context {
+  extractContext(): Context {
     // This would use the propagator configured in the SDK
+    // carrier parameter intentionally unused - placeholder for future implementation
     return context.active();
   }
 

@@ -111,10 +111,9 @@ export class WebhooksController {
    */
   @Post('twilio')
   @HttpCode(HttpStatus.OK)
-  async handleTwilioWebhook(
-    @Body() body: any,
-    @Headers('x-twilio-signature') _signature?: string,
-  ) {
+  async handleTwilioWebhook(@Body() body: any) {
+    // Note: Signature validation should be implemented in production
+    // using @Headers('x-twilio-signature') for security
     this.logger.log(`Received Twilio webhook - SID: ${body.MessageSid}`);
 
     try {

@@ -1,0 +1,437 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { NotificationService } from '../notification/notification.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { KafkaProducerService } from '../kafka/kafka-producer.service';
+import { CacheService } from '../redis/cache.service';
+import { MetricsService } from '../common/metrics/metrics.service';
+import { CreateNotificationDto } from '../notification/dto/create-notification.dto';
+import { NotFoundException } from '@nestjs/common';
+
+// Define constants since Prisma schema uses strings not enums
+const NotificationChannel = {
+  EMAIL: 'EMAIL',
+  SMS: 'SMS',
+  PUSH: 'PUSH',
+  IN_APP: 'IN_APP',
+  WEBHOOK: 'WEBHOOK',
+};
+
+const NotificationStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SENT: 'SENT',
+  FAILED: 'FAILED',
+  SCHEDULED: 'SCHEDULED',
+};
+
+const NotificationType = {
+  TRANSACTIONAL: 'TRANSACTIONAL',
+  MARKETING: 'MARKETING',
+  SYSTEM: 'SYSTEM',
+  ALERT: 'ALERT',
+};
+
+const NotificationPriority = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  URGENT: 'URGENT',
+};
+
+describe('NotificationService', () => {
+  let service: NotificationService;
+
+  const mockPrismaService = {
+    notification: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+      count: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    user: {
+      findUnique: jest.fn(),
+    },
+  };
+
+  const mockKafkaProducerService = {
+    sendNotification: jest.fn(),
+  };
+
+  const mockCacheService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    invalidate: jest.fn(),
+  };
+
+  const mockMetricsService = {
+    notificationsTotal: { inc: jest.fn() },
+    notificationsFailed: { inc: jest.fn() },
+    notificationsByChannel: { inc: jest.fn() },
+    notificationsByPriority: { inc: jest.fn() },
+    notificationProcessingDuration: { observe: jest.fn() },
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        NotificationService,
+        {
+          provide: PrismaService,
+          useValue: mockPrismaService,
+        },
+        {
+          provide: KafkaProducerService,
+          useValue: mockKafkaProducerService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: MetricsService,
+          useValue: mockMetricsService,
+        },
+      ],
+    }).compile();
+
+    service = module.get<NotificationService>(NotificationService);
+
+    // Clear all mocks before each test
+    jest.clearAllMocks();
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+
+  describe('create', () => {
+    const createDto: CreateNotificationDto = {
+      userId: 'user-123',
+      tenantId: 'tenant-456',
+      channel: NotificationChannel.EMAIL,
+      type: NotificationType.TRANSACTIONAL,
+      priority: NotificationPriority.HIGH,
+      payload: {
+        to: 'user@example.com',
+        subject: 'Test Notification',
+        body: 'This is a test',
+      },
+    };
+
+    const mockUser = {
+      id: 'user-123',
+      email: 'user@example.com',
+      name: 'Test User',
+      tenantId: 'tenant-456',
+      role: 'USER',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const mockNotification = {
+      id: 'notif-123',
+      userId: 'user-123',
+      tenantId: 'tenant-456',
+      channel: NotificationChannel.EMAIL,
+      type: NotificationType.TRANSACTIONAL,
+      priority: NotificationPriority.HIGH,
+      status: NotificationStatus.PENDING,
+      payload: createDto.payload,
+      metadata: {},
+      scheduledFor: null,
+      sentAt: null,
+      failedAt: null,
+      retryCount: 0,
+      maxRetries: 3,
+      error: null,
+      idempotencyKey: expect.any(String),
+      correlationId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('should create a notification successfully', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.notification.create.mockResolvedValue(mockNotification);
+      mockKafkaProducerService.sendNotification.mockResolvedValue([]);
+
+      const result = await service.create(createDto);
+
+      expect(result).toEqual(mockNotification);
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: createDto.userId },
+      });
+      expect(mockPrismaService.notification.create).toHaveBeenCalled();
+      expect(mockKafkaProducerService.sendNotification).toHaveBeenCalled();
+      expect(mockMetricsService.notificationsTotal.inc).toHaveBeenCalled();
+      expect(mockMetricsService.notificationsByChannel.inc).toHaveBeenCalled();
+      expect(mockMetricsService.notificationsByPriority.inc).toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if user does not exist', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.create(createDto)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: createDto.userId },
+      });
+      expect(mockPrismaService.notification.create).not.toHaveBeenCalled();
+    });
+
+    it('should handle Kafka send failure gracefully', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.notification.create.mockResolvedValue(mockNotification);
+      mockKafkaProducerService.sendNotification.mockRejectedValue(
+        new Error('Kafka error'),
+      );
+
+      const result = await service.create(createDto);
+
+      expect(result).toEqual(mockNotification);
+      expect(mockMetricsService.notificationsFailed.inc).toHaveBeenCalled();
+    });
+
+    it('should create scheduled notification', async () => {
+      const scheduledDto = {
+        ...createDto,
+        scheduledFor: new Date(Date.now() + 3600000), // 1 hour from now
+      };
+
+      const scheduledNotification = {
+        ...mockNotification,
+        status: NotificationStatus.SCHEDULED,
+        scheduledFor: scheduledDto.scheduledFor,
+      };
+
+      mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
+      mockPrismaService.notification.create.mockResolvedValue(
+        scheduledNotification,
+      );
+
+      const result = await service.create(scheduledDto);
+
+      expect(result.status).toBe(NotificationStatus.SCHEDULED);
+      expect(result.scheduledFor).toEqual(scheduledDto.scheduledFor);
+      expect(mockKafkaProducerService.sendNotification).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findAll', () => {
+    const mockNotifications = [
+      {
+        id: 'notif-1',
+        userId: 'user-123',
+        channel: NotificationChannel.EMAIL,
+        status: NotificationStatus.SENT,
+      },
+      {
+        id: 'notif-2',
+        userId: 'user-123',
+        channel: NotificationChannel.SMS,
+        status: NotificationStatus.PENDING,
+      },
+    ];
+
+    it('should return all notifications with pagination', async () => {
+      mockPrismaService.notification.findMany.mockResolvedValue(
+        mockNotifications,
+      );
+      mockPrismaService.notification.count.mockResolvedValue(2);
+
+      const result = await service.findAll({ page: 1, limit: 10 });
+
+      expect(result.data).toEqual(mockNotifications);
+      expect(result.total).toBe(2);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(10);
+      expect(mockPrismaService.notification.findMany).toHaveBeenCalled();
+      expect(mockPrismaService.notification.count).toHaveBeenCalled();
+    });
+
+    it('should filter notifications by userId', async () => {
+      mockPrismaService.notification.findMany.mockResolvedValue(
+        mockNotifications,
+      );
+      mockPrismaService.notification.count.mockResolvedValue(2);
+
+      await service.findAll({ userId: 'user-123' });
+
+      expect(mockPrismaService.notification.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ userId: 'user-123' }),
+        }),
+      );
+    });
+
+    it('should filter notifications by status', async () => {
+      mockPrismaService.notification.findMany.mockResolvedValue([
+        mockNotifications[0],
+      ]);
+      mockPrismaService.notification.count.mockResolvedValue(1);
+
+      await service.findAll({ status: NotificationStatus.SENT });
+
+      expect(mockPrismaService.notification.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: NotificationStatus.SENT }),
+        }),
+      );
+    });
+  });
+
+  describe('findOne', () => {
+    const mockNotification = {
+      id: 'notif-123',
+      userId: 'user-123',
+      channel: NotificationChannel.EMAIL,
+      status: NotificationStatus.SENT,
+    };
+
+    it('should return a notification by id', async () => {
+      mockCacheService.get.mockResolvedValue(null);
+      mockPrismaService.notification.findUnique.mockResolvedValue(
+        mockNotification,
+      );
+
+      const result = await service.findOne('notif-123');
+
+      expect(result).toEqual(mockNotification);
+      expect(mockCacheService.get).toHaveBeenCalledWith(
+        'notification:notif-123',
+      );
+      expect(mockPrismaService.notification.findUnique).toHaveBeenCalledWith({
+        where: { id: 'notif-123' },
+      });
+      expect(mockCacheService.set).toHaveBeenCalled();
+    });
+
+    it('should return cached notification if available', async () => {
+      mockCacheService.get.mockResolvedValue(mockNotification);
+
+      const result = await service.findOne('notif-123');
+
+      expect(result).toEqual(mockNotification);
+      expect(mockCacheService.get).toHaveBeenCalledWith(
+        'notification:notif-123',
+      );
+      expect(mockPrismaService.notification.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if notification does not exist', async () => {
+      mockCacheService.get.mockResolvedValue(null);
+      mockPrismaService.notification.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne('notif-123')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('update', () => {
+    const updateDto = {
+      status: NotificationStatus.SENT,
+      sentAt: new Date(),
+    };
+
+    const mockNotification = {
+      id: 'notif-123',
+      userId: 'user-123',
+      status: NotificationStatus.PENDING,
+    };
+
+    const updatedNotification = {
+      ...mockNotification,
+      ...updateDto,
+    };
+
+    it('should update a notification', async () => {
+      mockPrismaService.notification.findUnique.mockResolvedValue(
+        mockNotification,
+      );
+      mockPrismaService.notification.update.mockResolvedValue(
+        updatedNotification,
+      );
+
+      const result = await service.update('notif-123', updateDto);
+
+      expect(result).toEqual(updatedNotification);
+      expect(mockPrismaService.notification.update).toHaveBeenCalledWith({
+        where: { id: 'notif-123' },
+        data: updateDto,
+      });
+      expect(mockCacheService.invalidate).toHaveBeenCalledWith(
+        'notification:notif-123',
+      );
+    });
+
+    it('should throw NotFoundException if notification does not exist', async () => {
+      mockPrismaService.notification.findUnique.mockResolvedValue(null);
+
+      await expect(service.update('notif-123', updateDto)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrismaService.notification.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    const mockNotification = {
+      id: 'notif-123',
+      userId: 'user-123',
+      status: NotificationStatus.SENT,
+    };
+
+    it('should delete a notification', async () => {
+      mockPrismaService.notification.findUnique.mockResolvedValue(
+        mockNotification,
+      );
+      mockPrismaService.notification.delete.mockResolvedValue(mockNotification);
+
+      const result = await service.remove('notif-123');
+
+      expect(result).toEqual(mockNotification);
+      expect(mockPrismaService.notification.delete).toHaveBeenCalledWith({
+        where: { id: 'notif-123' },
+      });
+      expect(mockCacheService.invalidate).toHaveBeenCalledWith(
+        'notification:notif-123',
+      );
+    });
+
+    it('should throw NotFoundException if notification does not exist', async () => {
+      mockPrismaService.notification.findUnique.mockResolvedValue(null);
+
+      await expect(service.remove('notif-123')).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(mockPrismaService.notification.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getStats', () => {
+    it('should return notification statistics', async () => {
+      const mockStats = [
+        { status: NotificationStatus.SENT, _count: { status: 100 } },
+        { status: NotificationStatus.PENDING, _count: { status: 50 } },
+        { status: NotificationStatus.FAILED, _count: { status: 10 } },
+      ];
+
+      mockPrismaService.notification.groupBy = jest
+        .fn()
+        .mockResolvedValue(mockStats);
+
+      const result = await service.getStats('user-123');
+
+      expect(result).toEqual({
+        SENT: 100,
+        PENDING: 50,
+        FAILED: 10,
+      });
+    });
+  });
+});

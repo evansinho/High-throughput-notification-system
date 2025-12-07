@@ -172,7 +172,7 @@ export class NotificationService {
           'notification.channel': dto.channel,
           'notification.type': dto.type,
           'notification.priority': dto.priority || 'MEDIUM',
-          'correlationId': correlationId,
+          correlationId: correlationId,
         });
 
         // Generate idempotency key if not provided (using userId + timestamp as fallback)
@@ -187,12 +187,15 @@ export class NotificationService {
         );
 
         if (existingNotificationId) {
-          span.addEvent('duplicate_request_detected', { existingNotificationId });
+          span.addEvent('duplicate_request_detected', {
+            existingNotificationId,
+          });
 
           // Return existing notification
-          const existingNotification = await this.prisma.notification.findUnique({
-            where: { id: existingNotificationId },
-          });
+          const existingNotification =
+            await this.prisma.notification.findUnique({
+              where: { id: existingNotificationId },
+            });
 
           if (!existingNotification) {
             throw new ConflictException(
@@ -225,7 +228,9 @@ export class NotificationService {
                 priority,
                 payload: dto.payload as any, // Prisma stores JSON
                 content: JSON.stringify(dto.payload), // deprecated field - keep for backward compatibility
-                scheduledFor: dto.scheduledFor ? new Date(dto.scheduledFor) : null,
+                scheduledFor: dto.scheduledFor
+                  ? new Date(dto.scheduledFor)
+                  : null,
                 idempotencyKey,
                 correlationId,
               },
