@@ -63,7 +63,12 @@ export class LoggerService implements NestLoggerService {
     });
   }
 
-  error(message: string, trace?: string, context?: string, correlationId?: string) {
+  error(
+    message: string,
+    trace?: string,
+    context?: string,
+    correlationId?: string,
+  ) {
     this.logger.error({
       message,
       trace,

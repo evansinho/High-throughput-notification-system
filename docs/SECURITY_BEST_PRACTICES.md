@@ -607,9 +607,3 @@ Before deploying to production, verify:
 - [Secure Code Warrior](https://www.securecodewarrior.com/)
 
 ---
-
-**Remember**: Security is everyone's responsibility. When in doubt, ask the security team!
-
-**Last Updated**: December 7, 2025
-**Owner**: Security Team
-**Review Frequency**: Quarterly

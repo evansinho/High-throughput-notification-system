@@ -12,14 +12,10 @@ import {
   NotificationType,
   NotificationPriority,
 } from '@prisma/client';
-import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 
 describe('NotificationService', () => {
   let service: NotificationService;
-  let prismaService: PrismaService;
-  let kafkaProducerService: KafkaProducerService;
-  let cacheService: CacheService;
-  let metricsService: MetricsService;
 
   const mockPrismaService = {
     notification: {
@@ -29,6 +25,7 @@ describe('NotificationService', () => {
       update: jest.fn(),
       delete: jest.fn(),
       count: jest.fn(),
+      groupBy: jest.fn(),
     },
     user: {
       findUnique: jest.fn(),
@@ -77,12 +74,6 @@ describe('NotificationService', () => {
     }).compile();
 
     service = module.get<NotificationService>(NotificationService);
-    prismaService = module.get<PrismaService>(PrismaService);
-    kafkaProducerService = module.get<KafkaProducerService>(
-      KafkaProducerService,
-    );
-    cacheService = module.get<CacheService>(CacheService);
-    metricsService = module.get<MetricsService>(MetricsService);
 
     // Clear all mocks before each test
     jest.clearAllMocks();

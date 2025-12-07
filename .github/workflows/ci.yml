@@ -139,7 +139,7 @@ jobs:
           - 6379:6379
 
       kafka:
-        image: apache/kafka:3.6.1
+        image: confluentinc/cp-kafka:7.5.0
         env:
           KAFKA_NODE_ID: 1
           KAFKA_PROCESS_ROLES: broker,controller

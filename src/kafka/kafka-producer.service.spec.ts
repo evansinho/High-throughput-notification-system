@@ -209,9 +209,9 @@ describe('KafkaProducerService', () => {
       const error = new Error('Batch send failed');
       mockProducer.send.mockRejectedValueOnce(error);
 
-      await expect(
-        service.sendNotificationBatch(mockMessages),
-      ).rejects.toThrow('Batch send failed');
+      await expect(service.sendNotificationBatch(mockMessages)).rejects.toThrow(
+        'Batch send failed',
+      );
     });
 
     it('should send empty batch without error', async () => {

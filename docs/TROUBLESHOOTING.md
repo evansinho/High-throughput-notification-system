@@ -742,9 +742,3 @@ DEBUG=prisma:query
 # Enable all debug logs
 DEBUG=*
 ```
-
----
-
-**Last Updated**: December 7, 2025
-**Version**: 1.0.0
-**Maintained By**: Platform Engineering Team

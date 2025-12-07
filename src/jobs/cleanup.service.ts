@@ -103,7 +103,7 @@ export class CleanupService {
               await this.redis.del(key);
               deletedCount++;
             }
-          } catch (parseError) {
+          } catch {
             // If we can't parse the data, delete it
             await this.redis.del(key);
             deletedCount++;

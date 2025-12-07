@@ -158,11 +158,9 @@ describe('NotificationsController (e2e)', () => {
   });
 
   describe('GET /notifications', () => {
-    let notificationId: string;
-
     beforeAll(async () => {
       // Create test notification
-      const response = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post('/notifications')
         .set('Authorization', `Bearer ${authToken}`)
         .send({
@@ -177,8 +175,6 @@ describe('NotificationsController (e2e)', () => {
             body: 'Test',
           },
         });
-
-      notificationId = response.body.id;
     });
 
     it('should return all notifications with pagination', async () => {
@@ -214,9 +210,9 @@ describe('NotificationsController (e2e)', () => {
         .query({ channel: NotificationChannel.EMAIL })
         .expect(200);
 
-      expect(
-        response.body.data.every((n: any) => n.channel === 'EMAIL'),
-      ).toBe(true);
+      expect(response.body.data.every((n: any) => n.channel === 'EMAIL')).toBe(
+        true,
+      );
     });
 
     it('should fail without authentication', async () => {
