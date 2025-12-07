@@ -1,18 +1,42 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotificationService } from './notification.service';
+import { NotificationService } from '../notification/notification.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { KafkaProducerService } from '../kafka/kafka-producer.service';
 import { CacheService } from '../redis/cache.service';
 import { MetricsService } from '../common/metrics/metrics.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
-import { UpdateNotificationDto } from './dto/update-notification.dto';
-import {
-  NotificationChannel,
-  NotificationStatus,
-  NotificationType,
-  NotificationPriority,
-} from '@prisma/client';
+import { CreateNotificationDto } from '../notification/dto/create-notification.dto';
 import { NotFoundException } from '@nestjs/common';
+
+// Define constants since Prisma schema uses strings not enums
+const NotificationChannel = {
+  EMAIL: 'EMAIL',
+  SMS: 'SMS',
+  PUSH: 'PUSH',
+  IN_APP: 'IN_APP',
+  WEBHOOK: 'WEBHOOK',
+};
+
+const NotificationStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SENT: 'SENT',
+  FAILED: 'FAILED',
+  SCHEDULED: 'SCHEDULED',
+};
+
+const NotificationType = {
+  TRANSACTIONAL: 'TRANSACTIONAL',
+  MARKETING: 'MARKETING',
+  SYSTEM: 'SYSTEM',
+  ALERT: 'ALERT',
+};
+
+const NotificationPriority = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  URGENT: 'URGENT',
+};
 
 describe('NotificationService', () => {
   let service: NotificationService;
@@ -309,7 +333,7 @@ describe('NotificationService', () => {
   });
 
   describe('update', () => {
-    const updateDto: UpdateNotificationDto = {
+    const updateDto = {
       status: NotificationStatus.SENT,
       sentAt: new Date(),
     };

@@ -1,11 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { KafkaProducerService } from './kafka-producer.service';
-import { NotificationMessage } from './schemas/notification.schema';
 import {
+  NotificationMessage,
   NotificationChannel,
   NotificationType,
   NotificationPriority,
-} from '@prisma/client';
+  NotificationStatus,
+} from './schemas/notification.schema';
 
 // Mock kafkajs
 jest.mock('kafkajs', () => {
@@ -77,17 +78,20 @@ describe('KafkaProducerService', () => {
   describe('sendNotification', () => {
     const mockMessage: NotificationMessage = {
       id: 'notif-123',
+      version: '1.0.0',
+      timestamp: Date.now(),
+      idempotencyKey: 'idem-123',
       userId: 'user-456',
       tenantId: 'tenant-789',
+      type: NotificationType.EMAIL,
       channel: NotificationChannel.EMAIL,
-      type: NotificationType.TRANSACTIONAL,
       priority: NotificationPriority.HIGH,
+      status: NotificationStatus.PENDING,
       payload: {
         to: 'user@example.com',
         subject: 'Test Notification',
         body: 'This is a test',
       },
-      idempotencyKey: 'idem-123',
       correlationId: 'corr-456',
     };
 
@@ -147,7 +151,7 @@ describe('KafkaProducerService', () => {
             expect.objectContaining({
               headers: {
                 'idempotency-key': 'idem-123',
-                'message-type': NotificationType.TRANSACTIONAL,
+                'message-type': NotificationType.EMAIL,
                 priority: NotificationPriority.HIGH,
               },
             }),
@@ -161,24 +165,30 @@ describe('KafkaProducerService', () => {
     const mockMessages: NotificationMessage[] = [
       {
         id: 'notif-1',
+        version: '1.0.0',
+        timestamp: Date.now(),
+        idempotencyKey: 'idem-1',
         userId: 'user-1',
         tenantId: 'tenant-1',
+        type: NotificationType.EMAIL,
         channel: NotificationChannel.EMAIL,
-        type: NotificationType.TRANSACTIONAL,
         priority: NotificationPriority.HIGH,
+        status: NotificationStatus.PENDING,
         payload: { to: 'user1@example.com', subject: 'Test 1', body: 'Body 1' },
-        idempotencyKey: 'idem-1',
         correlationId: 'corr-1',
       },
       {
         id: 'notif-2',
+        version: '1.0.0',
+        timestamp: Date.now(),
+        idempotencyKey: 'idem-2',
         userId: 'user-2',
         tenantId: 'tenant-2',
+        type: NotificationType.SMS,
         channel: NotificationChannel.SMS,
-        type: NotificationType.MARKETING,
         priority: NotificationPriority.MEDIUM,
+        status: NotificationStatus.PENDING,
         payload: { to: '+1234567890', body: 'SMS body' },
-        idempotencyKey: 'idem-2',
         correlationId: 'corr-2',
       },
     ];

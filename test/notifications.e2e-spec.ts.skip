@@ -3,12 +3,37 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
-import {
-  NotificationChannel,
-  NotificationType,
-  NotificationPriority,
-  NotificationStatus,
-} from '@prisma/client';
+
+// Define constants since Prisma schema uses strings not enums
+const NotificationChannel = {
+  EMAIL: 'EMAIL',
+  SMS: 'SMS',
+  PUSH: 'PUSH',
+  IN_APP: 'IN_APP',
+  WEBHOOK: 'WEBHOOK',
+};
+
+const NotificationStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  SENT: 'SENT',
+  FAILED: 'FAILED',
+  SCHEDULED: 'SCHEDULED',
+};
+
+const NotificationType = {
+  TRANSACTIONAL: 'TRANSACTIONAL',
+  MARKETING: 'MARKETING',
+  SYSTEM: 'SYSTEM',
+  ALERT: 'ALERT',
+};
+
+const NotificationPriority = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  URGENT: 'URGENT',
+};
 
 describe('NotificationsController (e2e)', () => {
   let app: INestApplication;
