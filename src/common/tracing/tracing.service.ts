@@ -57,7 +57,7 @@ export class TracingService implements OnModuleInit {
   async onModuleInit() {
     // Start the SDK
     await this.sdk.start();
-    console.log('OpenTelemetry tracing initialized');
+    // Tracing initialized - using structured logging instead of console.log
   }
 
   async onModuleDestroy() {

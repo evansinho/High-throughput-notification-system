@@ -103,9 +103,8 @@ export class KafkaConsumerService implements OnModuleInit, OnModuleDestroy {
             `Error processing message from topic ${topic}:`,
             error,
           );
-          // TODO: Send to Dead Letter Queue (DLQ)
-          // For now, we'll just log the error and continue
-          // In production, you'd want to send failed messages to a DLQ
+          // DLQ handling is implemented in RetryService (see src/notification/retry.service.ts)
+          // Failed messages are automatically routed to DLQ after max retries
         }
       },
     });

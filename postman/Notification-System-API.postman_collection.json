@@ -1,0 +1,561 @@
+{
+  "info": {
+    "name": "Notification System API",
+    "description": "Complete API collection for high-throughput notification system (50K req/s)\n\n**Features:**\n- JWT Authentication\n- Multi-channel notifications (Email, SMS, Push)\n- Scheduled notifications\n- Admin dashboard\n- Real-time metrics\n\n**Quick Start:**\n1. Run 'Auth/Login' to get JWT token\n2. Token is automatically saved to environment\n3. All other requests use the token automatically\n\n**Base URL:** http://localhost:3000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register New User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('userId', response.user.id);",
+                  "    pm.environment.set('userId', response.user.id);",
+                  "    console.log('User registered:', response.user.email);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"password\": \"SecurePass123!@#\",\n  \"name\": \"New User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user account\n\n**Requirements:**\n- Email must be unique\n- Password minimum 8 characters\n- Name is required"
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('token', response.access_token);",
+                  "    pm.environment.set('token', response.access_token);",
+                  "    pm.collectionVariables.set('userId', response.user.id);",
+                  "    pm.environment.set('userId', response.user.id);",
+                  "    console.log('Login successful! Token saved.');",
+                  "    console.log('User ID:', response.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"demo.admin@example.com\",\n  \"password\": \"Demo123!@#\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login and get JWT token\n\n**Demo Accounts:**\n- demo.admin@example.com / Demo123!@#\n- demo.user1@example.com / Demo123!@#"
+          }
+        }
+      ],
+      "description": "Authentication endpoints for user registration and login"
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Create Email Notification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    pm.collectionVariables.set('notificationId', response.id);",
+                  "    pm.environment.set('notificationId', response.id);",
+                  "    console.log('Notification created:', response.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"channel\": \"EMAIL\",\n  \"type\": \"TRANSACTIONAL\",\n  \"priority\": \"HIGH\",\n  \"payload\": {\n    \"to\": \"customer@example.com\",\n    \"subject\": \"Order Confirmation #12345\",\n    \"body\": \"Thank you for your order! Your items will be shipped within 24 hours.\",\n    \"html\": \"<h1>Order Confirmed!</h1><p>Thank you for your order!</p>\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"]
+            },
+            "description": "Create a new email notification\n\n**Channels:** EMAIL, SMS, PUSH, IN_APP, WEBHOOK\n**Types:** TRANSACTIONAL, MARKETING, SYSTEM, ALERT\n**Priorities:** LOW, MEDIUM, HIGH, URGENT"
+          }
+        },
+        {
+          "name": "Create SMS Notification",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"channel\": \"SMS\",\n  \"type\": \"ALERT\",\n  \"priority\": \"URGENT\",\n  \"payload\": {\n    \"to\": \"+1234567890\",\n    \"body\": \"Security Alert: New login from Chrome on Windows. If this wasn't you, secure your account immediately.\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"]
+            },
+            "description": "Send an SMS notification via Twilio"
+          }
+        },
+        {
+          "name": "Create Push Notification",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"channel\": \"PUSH\",\n  \"type\": \"SYSTEM\",\n  \"priority\": \"MEDIUM\",\n  \"payload\": {\n    \"title\": \"App Update Available\",\n    \"body\": \"Version 2.0 is now available with exciting new features!\",\n    \"data\": {\n      \"version\": \"2.0.0\",\n      \"updateUrl\": \"https://app.example.com/update\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"]
+            },
+            "description": "Send a push notification via FCM"
+          }
+        },
+        {
+          "name": "Create Scheduled Notification",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"channel\": \"EMAIL\",\n  \"type\": \"MARKETING\",\n  \"priority\": \"LOW\",\n  \"scheduledFor\": \"2025-12-10T10:00:00Z\",\n  \"payload\": {\n    \"to\": \"customer@example.com\",\n    \"subject\": \"Flash Sale Alert!\",\n    \"body\": \"Our biggest sale of the year starts tomorrow. 50% off everything!\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"]
+            },
+            "description": "Schedule a notification for future delivery"
+          }
+        },
+        {
+          "name": "Get Notification by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/{{notificationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "{{notificationId}}"]
+            },
+            "description": "Retrieve a notification by ID with full details"
+          }
+        },
+        {
+          "name": "List Notifications (Paginated)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=1&limit=20&status=SENT",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "SENT"
+                },
+                {
+                  "key": "channel",
+                  "value": "EMAIL",
+                  "disabled": true
+                },
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List notifications with pagination and filters"
+          }
+        }
+      ],
+      "description": "Core notification endpoints for creating and managing notifications"
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get System Metrics",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "metrics"]
+            },
+            "description": "Get comprehensive system metrics including notification stats, Kafka stats, and system health"
+          }
+        },
+        {
+          "name": "Get Dashboard Summary",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "dashboard"]
+            },
+            "description": "Get executive dashboard summary with key metrics"
+          }
+        },
+        {
+          "name": "Search All Notifications",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/notifications?status=FAILED&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "notifications"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "FAILED"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "userId",
+                  "value": "{{userId}}",
+                  "disabled": true
+                },
+                {
+                  "key": "channel",
+                  "value": "EMAIL",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Admin search across all notifications with advanced filters"
+          }
+        },
+        {
+          "name": "Retry Failed Notification",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/notifications/{{notificationId}}/retry",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "notifications", "{{notificationId}}", "retry"]
+            },
+            "description": "Manually retry a failed notification"
+          }
+        },
+        {
+          "name": "Get Kafka Queue Stats",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/queue/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "queue", "stats"]
+            },
+            "description": "Get Kafka queue statistics including lag and throughput"
+          }
+        },
+        {
+          "name": "View Dead Letter Queue",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dlq",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "dlq"]
+            },
+            "description": "View messages in the Dead Letter Queue after max retries"
+          }
+        }
+      ],
+      "description": "Admin endpoints for system monitoring and management (requires ADMIN role)"
+    },
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Basic health check endpoint"
+          }
+        },
+        {
+          "name": "Readiness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/readiness",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "readiness"]
+            },
+            "description": "Check if service is ready to accept traffic (DB, Redis, Kafka connected)"
+          }
+        },
+        {
+          "name": "Liveness Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health/liveness",
+              "host": ["{{baseUrl}}"],
+              "path": ["health", "liveness"]
+            },
+            "description": "Check if service is alive (for Kubernetes liveness probe)"
+          }
+        }
+      ],
+      "description": "Health check endpoints for Kubernetes probes"
+    },
+    {
+      "name": "Metrics",
+      "item": [
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/metrics",
+              "host": ["{{baseUrl}}"],
+              "path": ["metrics"]
+            },
+            "description": "Get Prometheus-formatted metrics for scraping"
+          }
+        }
+      ],
+      "description": "Prometheus metrics endpoint"
+    }
+  ]
+}

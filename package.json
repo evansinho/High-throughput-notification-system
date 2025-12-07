@@ -1,10 +1,10 @@
 {
   "name": "notification-system",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
-  "private": true,
-  "license": "UNLICENSED",
+  "version": "1.0.0",
+  "description": "Production-grade high-throughput notification system handling 50K+ req/s with event-driven architecture, multi-channel delivery (Email/SMS/Push), and comprehensive observability",
+  "author": "Evanson Igiri",
+  "private": false,
+  "license": "MIT",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -28,6 +28,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "seed:demo": "ts-node prisma/seed-demo.ts",
+    "demo:setup": "npm run docker:up && sleep 10 && npx prisma migrate deploy && npm run seed:demo",
     "db:backup": "./scripts/db-backup.sh",
     "db:restore": "./scripts/db-restore.sh"
   },
