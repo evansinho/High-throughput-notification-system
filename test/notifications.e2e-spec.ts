@@ -1,0 +1,400 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import * as request from 'supertest';
+import { AppModule } from '../src/app.module';
+import { PrismaService } from '../src/prisma/prisma.service';
+import {
+  NotificationChannel,
+  NotificationType,
+  NotificationPriority,
+  NotificationStatus,
+} from '@prisma/client';
+
+describe('NotificationsController (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let authToken: string;
+  let userId: string;
+  let tenantId: string;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+      }),
+    );
+
+    prisma = app.get<PrismaService>(PrismaService);
+
+    await app.init();
+
+    // Create test user and get auth token
+    const registerResponse = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        email: `test-${Date.now()}@example.com`,
+        password: 'Test123!@#',
+        name: 'Test User',
+      })
+      .expect(201);
+
+    userId = registerResponse.body.user.id;
+    tenantId = registerResponse.body.user.tenantId;
+
+    const loginResponse = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: registerResponse.body.user.email,
+        password: 'Test123!@#',
+      })
+      .expect(200);
+
+    authToken = loginResponse.body.access_token;
+  });
+
+  afterAll(async () => {
+    // Cleanup test data
+    await prisma.notification.deleteMany({
+      where: { userId },
+    });
+    await prisma.user.deleteMany({
+      where: { id: userId },
+    });
+
+    await app.close();
+  });
+
+  describe('POST /notifications', () => {
+    it('should create a new notification', async () => {
+      const createDto = {
+        userId,
+        tenantId,
+        channel: NotificationChannel.EMAIL,
+        type: NotificationType.TRANSACTIONAL,
+        priority: NotificationPriority.HIGH,
+        payload: {
+          to: 'user@example.com',
+          subject: 'Test Notification',
+          body: 'This is a test notification',
+        },
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(createDto)
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.userId).toBe(userId);
+      expect(response.body.channel).toBe(NotificationChannel.EMAIL);
+      expect(response.body.status).toBe(NotificationStatus.PENDING);
+    });
+
+    it('should fail without authentication', async () => {
+      const createDto = {
+        userId,
+        tenantId,
+        channel: NotificationChannel.EMAIL,
+        type: NotificationType.TRANSACTIONAL,
+        priority: NotificationPriority.HIGH,
+        payload: {
+          to: 'user@example.com',
+          subject: 'Test',
+          body: 'Test',
+        },
+      };
+
+      await request(app.getHttpServer())
+        .post('/notifications')
+        .send(createDto)
+        .expect(401);
+    });
+
+    it('should validate required fields', async () => {
+      const invalidDto = {
+        userId,
+        // Missing required fields
+      };
+
+      await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(invalidDto)
+        .expect(400);
+    });
+
+    it('should create scheduled notification', async () => {
+      const scheduledFor = new Date(Date.now() + 3600000); // 1 hour from now
+      const createDto = {
+        userId,
+        tenantId,
+        channel: NotificationChannel.SMS,
+        type: NotificationType.MARKETING,
+        priority: NotificationPriority.MEDIUM,
+        payload: {
+          to: '+1234567890',
+          body: 'Scheduled notification',
+        },
+        scheduledFor: scheduledFor.toISOString(),
+      };
+
+      const response = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(createDto)
+        .expect(201);
+
+      expect(response.body.status).toBe(NotificationStatus.SCHEDULED);
+      expect(response.body.scheduledFor).toBeDefined();
+    });
+  });
+
+  describe('GET /notifications', () => {
+    let notificationId: string;
+
+    beforeAll(async () => {
+      // Create test notification
+      const response = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          userId,
+          tenantId,
+          channel: NotificationChannel.EMAIL,
+          type: NotificationType.TRANSACTIONAL,
+          priority: NotificationPriority.HIGH,
+          payload: {
+            to: 'user@example.com',
+            subject: 'Test',
+            body: 'Test',
+          },
+        });
+
+      notificationId = response.body.id;
+    });
+
+    it('should return all notifications with pagination', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .query({ page: 1, limit: 10 })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('data');
+      expect(response.body).toHaveProperty('total');
+      expect(response.body).toHaveProperty('page');
+      expect(response.body).toHaveProperty('limit');
+      expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
+    it('should filter notifications by status', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .query({ status: NotificationStatus.PENDING })
+        .expect(200);
+
+      expect(response.body.data.every((n: any) => n.status === 'PENDING')).toBe(
+        true,
+      );
+    });
+
+    it('should filter notifications by channel', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .query({ channel: NotificationChannel.EMAIL })
+        .expect(200);
+
+      expect(
+        response.body.data.every((n: any) => n.channel === 'EMAIL'),
+      ).toBe(true);
+    });
+
+    it('should fail without authentication', async () => {
+      await request(app.getHttpServer()).get('/notifications').expect(401);
+    });
+  });
+
+  describe('GET /notifications/:id', () => {
+    let notificationId: string;
+
+    beforeAll(async () => {
+      // Create test notification
+      const response = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          userId,
+          tenantId,
+          channel: NotificationChannel.EMAIL,
+          type: NotificationType.TRANSACTIONAL,
+          priority: NotificationPriority.HIGH,
+          payload: {
+            to: 'user@example.com',
+            subject: 'Test',
+            body: 'Test',
+          },
+        });
+
+      notificationId = response.body.id;
+    });
+
+    it('should return a notification by id', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/notifications/${notificationId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body.id).toBe(notificationId);
+      expect(response.body.userId).toBe(userId);
+    });
+
+    it('should return 404 for non-existent notification', async () => {
+      await request(app.getHttpServer())
+        .get('/notifications/non-existent-id')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
+    });
+
+    it('should fail without authentication', async () => {
+      await request(app.getHttpServer())
+        .get(`/notifications/${notificationId}`)
+        .expect(401);
+    });
+  });
+
+  describe('PATCH /notifications/:id', () => {
+    let notificationId: string;
+
+    beforeEach(async () => {
+      // Create test notification
+      const response = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          userId,
+          tenantId,
+          channel: NotificationChannel.EMAIL,
+          type: NotificationType.TRANSACTIONAL,
+          priority: NotificationPriority.HIGH,
+          payload: {
+            to: 'user@example.com',
+            subject: 'Test',
+            body: 'Test',
+          },
+        });
+
+      notificationId = response.body.id;
+    });
+
+    it('should update notification status', async () => {
+      const updateDto = {
+        status: NotificationStatus.SENT,
+        sentAt: new Date().toISOString(),
+      };
+
+      const response = await request(app.getHttpServer())
+        .patch(`/notifications/${notificationId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(updateDto)
+        .expect(200);
+
+      expect(response.body.status).toBe(NotificationStatus.SENT);
+      expect(response.body.sentAt).toBeDefined();
+    });
+
+    it('should return 404 for non-existent notification', async () => {
+      await request(app.getHttpServer())
+        .patch('/notifications/non-existent-id')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ status: NotificationStatus.SENT })
+        .expect(404);
+    });
+
+    it('should fail without authentication', async () => {
+      await request(app.getHttpServer())
+        .patch(`/notifications/${notificationId}`)
+        .send({ status: NotificationStatus.SENT })
+        .expect(401);
+    });
+  });
+
+  describe('DELETE /notifications/:id', () => {
+    let notificationId: string;
+
+    beforeEach(async () => {
+      // Create test notification
+      const response = await request(app.getHttpServer())
+        .post('/notifications')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({
+          userId,
+          tenantId,
+          channel: NotificationChannel.EMAIL,
+          type: NotificationType.TRANSACTIONAL,
+          priority: NotificationPriority.HIGH,
+          payload: {
+            to: 'user@example.com',
+            subject: 'Test',
+            body: 'Test',
+          },
+        });
+
+      notificationId = response.body.id;
+    });
+
+    it('should delete a notification', async () => {
+      await request(app.getHttpServer())
+        .delete(`/notifications/${notificationId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      // Verify deletion
+      await request(app.getHttpServer())
+        .get(`/notifications/${notificationId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
+    });
+
+    it('should return 404 for non-existent notification', async () => {
+      await request(app.getHttpServer())
+        .delete('/notifications/non-existent-id')
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(404);
+    });
+
+    it('should fail without authentication', async () => {
+      await request(app.getHttpServer())
+        .delete(`/notifications/${notificationId}`)
+        .expect(401);
+    });
+  });
+
+  describe('GET /notifications/stats/:userId', () => {
+    it('should return notification statistics', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/notifications/stats/${userId}`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('PENDING');
+      expect(response.body).toHaveProperty('SENT');
+      expect(response.body).toHaveProperty('FAILED');
+    });
+
+    it('should fail without authentication', async () => {
+      await request(app.getHttpServer())
+        .get(`/notifications/stats/${userId}`)
+        .expect(401);
+    });
+  });
+});
