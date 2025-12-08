@@ -43,6 +43,15 @@ export default () => ({
     },
   },
 
+  ai: {
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      model: process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022',
+      maxTokens: parseInt(process.env.ANTHROPIC_MAX_TOKENS || '4096', 10),
+      temperature: parseFloat(process.env.ANTHROPIC_TEMPERATURE || '0.7'),
+    },
+  },
+
   observability: {
     jaeger: {
       endpoint: process.env.JAEGER_ENDPOINT,

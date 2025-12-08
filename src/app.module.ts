@@ -14,6 +14,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { AdminModule } from './admin/admin.module';
 import { DataPipelineModule } from './data-pipeline/data-pipeline.module';
+import { AIModule } from './ai/ai.module';
 import { TracingModule } from './common/tracing/tracing.module';
 import { MetricsModule } from './common/metrics/metrics.module';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
@@ -61,6 +62,7 @@ import { RATE_LIMIT } from './common/constants';
     IntegrationsModule,
     AdminModule,
     DataPipelineModule,
+    AIModule,
   ],
   controllers: [AppController],
   providers: [
