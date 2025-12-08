@@ -53,6 +53,7 @@
     "@opentelemetry/exporter-jaeger": "^2.2.0",
     "@opentelemetry/sdk-node": "^0.208.0",
     "@prisma/client": "^6.19.0",
+    "@qdrant/js-client-rest": "^1.16.2",
     "@sendgrid/mail": "^8.1.6",
     "@willsoto/nestjs-prometheus": "^6.0.2",
     "bcrypt": "^6.0.0",

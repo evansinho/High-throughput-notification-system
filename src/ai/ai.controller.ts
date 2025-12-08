@@ -2,7 +2,7 @@ import { Controller, Post, Body, Get, Logger } from '@nestjs/common';
 import { LLMService } from './services/llm.service';
 import { CostTrackingService } from './services/cost-tracking.service';
 import { LLMPrompt, LLMMetrics } from './interfaces/llm.interface';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 /**
  * AI Controller - Endpoints for testing LLM functionality
@@ -21,7 +21,7 @@ export class AIController {
    */
   @Post('completion')
   async generateCompletion(@Body() prompt: LLMPrompt) {
-    const requestId = uuidv4();
+    const requestId = randomUUID();
     const startTime = Date.now();
 
     try {
