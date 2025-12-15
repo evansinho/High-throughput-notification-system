@@ -38,6 +38,23 @@ export interface EmbeddingResult {
   embedding: number[];
   model: string;
   dimensions: number;
+  cached?: boolean;
+}
+
+export interface EmbeddingBatchResult {
+  results: EmbeddingResult[];
+  totalTexts: number;
+  cacheHits: number;
+  cacheMisses: number;
+  processingTimeMs: number;
+  stats: EmbeddingStats;
+}
+
+export interface EmbeddingStats {
+  totalTokensProcessed: number;
+  totalCost: number;
+  model: string;
+  dimensions: number;
 }
 
 export interface CollectionInfo {

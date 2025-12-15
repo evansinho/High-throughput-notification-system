@@ -66,6 +66,7 @@
     "kafkajs": "^2.2.4",
     "langchain": "^0.3.36",
     "nestjs-pino": "^4.5.0",
+    "openai": "^6.10.0",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pino": "^10.1.0",
