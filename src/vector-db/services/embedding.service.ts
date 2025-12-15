@@ -1,48 +1,109 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { EmbeddingResult } from '../interfaces/vector.interface';
+import {
+  EmbeddingResult,
+  EmbeddingBatchResult,
+  EmbeddingStats,
+} from '../interfaces/vector.interface';
+import { CacheService } from '../../redis/cache.service';
+import OpenAI from 'openai';
 
 /**
  * Embedding Service - Generates vector embeddings for text
  *
- * NOTE: This is a simplified implementation. In production, you would use:
- * - OpenAI's text-embedding-ada-002 or text-embedding-3-small
- * - Voyage AI embeddings
- * - Local models via transformers.js or sentence-transformers
- * - Anthropic + Voyage AI integration
+ * Features:
+ * - OpenAI API integration with text-embedding-3-small (512 dimensions)
+ * - Batch processing (configurable batch size, default 100)
+ * - Redis caching (cache embeddings by text hash)
+ * - Retry logic with exponential backoff
+ * - Cost monitoring ($0.02 per 1M tokens)
+ * - Fallback to mock embeddings in test/dev mode
  */
 @Injectable()
 export class EmbeddingService {
   private readonly logger = new Logger(EmbeddingService.name);
-  private readonly vectorSize = 1536; // Standard embedding size
-  private readonly model = 'mock-embedding-model-v1';
+  private readonly vectorSize = 512; // text-embedding-3-small dimensions
+  private readonly model = 'text-embedding-3-small';
+  private readonly batchSize = 100;
+  private readonly maxRetries = 3;
+  private readonly retryDelayMs = 1000;
 
-  constructor(configService: ConfigService) {
-    // ConfigService available for future use (e.g., OpenAI API key)
-    const env = configService.get('app.nodeEnv');
-    this.logger.log('Embedding Service initialized (mock mode)');
+  // Cost tracking
+  private totalTokensProcessed = 0;
+  private totalCost = 0;
+  private readonly costPerMillionTokens = 0.02; // $0.02 per 1M tokens
+
+  private openai: OpenAI | null = null;
+  private useMockEmbeddings = false;
+
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly cacheService: CacheService,
+  ) {
+    const openaiApiKey = this.configService.get<string>('OPENAI_API_KEY');
+    const env = this.configService.get('app.nodeEnv');
+
+    if (openaiApiKey && env === 'production') {
+      this.openai = new OpenAI({ apiKey: openaiApiKey });
+      this.useMockEmbeddings = false;
+      this.logger.log(
+        `Embedding Service initialized with OpenAI (${this.model})`,
+      );
+    } else {
+      this.useMockEmbeddings = true;
+      this.logger.log('Embedding Service initialized (mock mode)');
+    }
+
     this.logger.log(`Environment: ${env}`);
+    this.logger.log(`Vector size: ${this.vectorSize}`);
+    this.logger.log(`Batch size: ${this.batchSize}`);
   }
 
   /**
-   * Generate embedding for text
-   *
-   * MOCK IMPLEMENTATION: Returns deterministic vectors based on text hash
-   * Replace with real embedding model in production
+   * Generate embedding for text with caching and retry logic
    */
-  async generateEmbedding(text: string): Promise<EmbeddingResult> {
+  async generateEmbedding(
+    text: string,
+    useCache = true,
+  ): Promise<EmbeddingResult> {
     try {
-      // In production, call actual embedding API:
-      // - OpenAI: await openai.embeddings.create({ input: text, model: 'text-embedding-ada-002' })
-      // - Voyage AI: await voyageai.embed({ texts: [text], model: 'voyage-2' })
-      // - Local: Use transformers.js or similar
+      // Check cache first
+      if (useCache) {
+        const cacheKey = this.getCacheKey(text);
+        const cached = await this.cacheService.get<number[]>(cacheKey);
+        if (cached) {
+          this.logger.debug('Cache hit for embedding');
+          return {
+            embedding: cached,
+            model: this.model,
+            dimensions: this.vectorSize,
+            cached: true,
+          };
+        }
+      }
 
-      const embedding = this.mockEmbedding(text);
+      // Generate embedding
+      let embedding: number[];
+      if (this.useMockEmbeddings) {
+        embedding = this.mockEmbedding(text);
+      } else {
+        embedding = await this.generateOpenAIEmbedding(text);
+      }
+
+      // Cache the result
+      if (useCache) {
+        const cacheKey = this.getCacheKey(text);
+        // Cache for 7 days (embeddings don't change)
+        await this.cacheService.set(cacheKey, embedding, {
+          ttl: 7 * 24 * 60 * 60,
+        });
+      }
 
       return {
         embedding,
         model: this.model,
         dimensions: this.vectorSize,
+        cached: false,
       };
     } catch (error) {
       const errorMessage =
@@ -54,21 +115,231 @@ export class EmbeddingService {
 
   /**
    * Batch generate embeddings for multiple texts
+   * Processes in chunks of batchSize (default 100) for efficiency
    */
-  async generateEmbeddings(texts: string[]): Promise<EmbeddingResult[]> {
+  async generateEmbeddings(
+    texts: string[],
+    useCache = true,
+  ): Promise<EmbeddingBatchResult> {
+    const startTime = Date.now();
+    const results: EmbeddingResult[] = [];
+    let cacheHits = 0;
+    let cacheMisses = 0;
+
     try {
-      // In production, use batch API for efficiency
-      const embeddings = await Promise.all(
-        texts.map((text) => this.generateEmbedding(text)),
+      // Process in batches
+      for (let i = 0; i < texts.length; i += this.batchSize) {
+        const batch = texts.slice(i, i + this.batchSize);
+        this.logger.log(
+          `Processing batch ${Math.floor(i / this.batchSize) + 1}/${Math.ceil(texts.length / this.batchSize)} (${batch.length} texts)`,
+        );
+
+        const batchResults = await this.processBatch(batch, useCache);
+        results.push(...batchResults);
+
+        // Count cache hits/misses
+        batchResults.forEach((result) => {
+          if (result.cached) {
+            cacheHits++;
+          } else {
+            cacheMisses++;
+          }
+        });
+      }
+
+      const processingTimeMs = Date.now() - startTime;
+
+      this.logger.log(
+        `Batch embedding complete: ${texts.length} texts, ${cacheHits} cache hits, ${cacheMisses} cache misses, ${processingTimeMs}ms`,
       );
 
-      return embeddings;
+      return {
+        results,
+        totalTexts: texts.length,
+        cacheHits,
+        cacheMisses,
+        processingTimeMs,
+        stats: this.getStats(),
+      };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to generate batch embeddings: ${errorMessage}`);
       throw error;
     }
+  }
+
+  /**
+   * Process a single batch of texts (max batchSize)
+   */
+  private async processBatch(
+    texts: string[],
+    useCache: boolean,
+  ): Promise<EmbeddingResult[]> {
+    if (this.useMockEmbeddings) {
+      // For mock embeddings, process one by one
+      return Promise.all(
+        texts.map((text) => this.generateEmbedding(text, useCache)),
+      );
+    }
+
+    // For OpenAI, check cache first for all texts
+    const uncachedTexts: string[] = [];
+    const uncachedIndices: number[] = [];
+    const results: EmbeddingResult[] = new Array(texts.length);
+
+    if (useCache) {
+      for (let i = 0; i < texts.length; i++) {
+        const cacheKey = this.getCacheKey(texts[i]);
+        const cached = await this.cacheService.get<number[]>(cacheKey);
+        if (cached) {
+          results[i] = {
+            embedding: cached,
+            model: this.model,
+            dimensions: this.vectorSize,
+            cached: true,
+          };
+        } else {
+          uncachedTexts.push(texts[i]);
+          uncachedIndices.push(i);
+        }
+      }
+    } else {
+      uncachedTexts.push(...texts);
+      uncachedIndices.push(...texts.map((_, i) => i));
+    }
+
+    // Generate embeddings for uncached texts
+    if (uncachedTexts.length > 0) {
+      const embeddings =
+        await this.generateOpenAIEmbeddingsBatch(uncachedTexts);
+
+      // Fill results and cache
+      for (let i = 0; i < uncachedTexts.length; i++) {
+        const idx = uncachedIndices[i];
+        results[idx] = {
+          embedding: embeddings[i],
+          model: this.model,
+          dimensions: this.vectorSize,
+          cached: false,
+        };
+
+        // Cache the result
+        if (useCache) {
+          const cacheKey = this.getCacheKey(uncachedTexts[i]);
+          await this.cacheService.set(cacheKey, embeddings[i], {
+            ttl: 7 * 24 * 60 * 60,
+          });
+        }
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Generate OpenAI embedding with retry logic
+   */
+  private async generateOpenAIEmbedding(text: string): Promise<number[]> {
+    return this.retryWithBackoff(async () => {
+      if (!this.openai) {
+        throw new Error('OpenAI client not initialized');
+      }
+
+      const response = await this.openai.embeddings.create({
+        input: text,
+        model: this.model,
+        dimensions: this.vectorSize,
+      });
+
+      // Track usage
+      this.totalTokensProcessed += response.usage.total_tokens;
+      this.totalCost +=
+        (response.usage.total_tokens / 1_000_000) * this.costPerMillionTokens;
+
+      return response.data[0].embedding;
+    });
+  }
+
+  /**
+   * Generate OpenAI embeddings for batch
+   */
+  private async generateOpenAIEmbeddingsBatch(
+    texts: string[],
+  ): Promise<number[][]> {
+    return this.retryWithBackoff(async () => {
+      if (!this.openai) {
+        throw new Error('OpenAI client not initialized');
+      }
+
+      const response = await this.openai.embeddings.create({
+        input: texts,
+        model: this.model,
+        dimensions: this.vectorSize,
+      });
+
+      // Track usage
+      this.totalTokensProcessed += response.usage.total_tokens;
+      this.totalCost +=
+        (response.usage.total_tokens / 1_000_000) * this.costPerMillionTokens;
+
+      return response.data.map((item) => item.embedding);
+    });
+  }
+
+  /**
+   * Retry with exponential backoff
+   */
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    attempt = 1,
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt >= this.maxRetries) {
+        throw error;
+      }
+
+      const delay = this.retryDelayMs * Math.pow(2, attempt - 1);
+      const jitter = Math.random() * delay * 0.1; // 10% jitter
+
+      this.logger.warn(
+        `Retry attempt ${attempt}/${this.maxRetries} after ${Math.round(delay + jitter)}ms`,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+      return this.retryWithBackoff(fn, attempt + 1);
+    }
+  }
+
+  /**
+   * Get cache key for text
+   */
+  private getCacheKey(text: string): string {
+    const hash = this.simpleHash(text);
+    return `embedding:${this.model}:${hash}`;
+  }
+
+  /**
+   * Get embedding statistics
+   */
+  getStats(): EmbeddingStats {
+    return {
+      totalTokensProcessed: this.totalTokensProcessed,
+      totalCost: this.totalCost,
+      model: this.model,
+      dimensions: this.vectorSize,
+    };
+  }
+
+  /**
+   * Reset statistics
+   */
+  resetStats(): void {
+    this.totalTokensProcessed = 0;
+    this.totalCost = 0;
+    this.logger.log('Embedding statistics reset');
   }
 
   /**
