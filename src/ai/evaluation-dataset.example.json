@@ -1,0 +1,37 @@
+[
+  {
+    "query": "Generate an email notification for order shipment with tracking number",
+    "referenceAnswer": "Subject: Your Order Has Shipped!\n\nDear {{customer_name}},\n\nGood news! Your order #{{order_id}} has been shipped and is on its way to you.\n\nTracking Number: {{tracking_number}}\nEstimated Delivery: {{delivery_date}}\n\nYou can track your shipment at: {{tracking_url}}\n\nThank you for your order!\nBest regards,\nThe Team",
+    "expectedContext": ["order", "shipment", "tracking", "delivery"],
+    "channel": "email",
+    "category": "transactional"
+  },
+  {
+    "query": "Create a push notification for payment confirmation",
+    "referenceAnswer": "Payment Received! Your payment of {{amount}} for order #{{order_id}} has been successfully processed. Thank you!",
+    "expectedContext": ["payment", "confirmation", "amount"],
+    "channel": "push",
+    "category": "transactional"
+  },
+  {
+    "query": "Write an SMS notification for delivery status",
+    "referenceAnswer": "Your order #{{order_id}} is out for delivery today. Expected by {{time}}. Track: {{short_url}}",
+    "expectedContext": ["delivery", "status", "tracking"],
+    "channel": "sms",
+    "category": "transactional"
+  },
+  {
+    "query": "Generate a promotional email for seasonal sale",
+    "referenceAnswer": "Subject: Big {{season}} Sale - Up to {{discount}}% Off!\n\nHi {{customer_name}},\n\nDon't miss our biggest {{season}} sale! Save up to {{discount}}% on your favorite items.\n\nShop now: {{sale_url}}\nOffer ends {{end_date}}\n\nHappy shopping!",
+    "expectedContext": ["sale", "discount", "promotion", "seasonal"],
+    "channel": "email",
+    "category": "marketing"
+  },
+  {
+    "query": "Create a password reset email notification",
+    "referenceAnswer": "Subject: Reset Your Password\n\nHello {{user_name}},\n\nWe received a request to reset your password. Click the link below to create a new password:\n\n{{reset_url}}\n\nThis link expires in {{expiry_hours}} hours.\n\nIf you didn't request this, please ignore this email.\n\nBest regards,\nSecurity Team",
+    "expectedContext": ["password", "reset", "security", "verification"],
+    "channel": "email",
+    "category": "system"
+  }
+]

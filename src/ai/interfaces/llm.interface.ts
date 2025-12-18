@@ -18,8 +18,10 @@ export interface LLMResponse {
 }
 
 export interface TokenUsage {
-  inputTokens: number;
-  outputTokens: number;
+  inputTokens?: number; // Legacy
+  outputTokens?: number; // Legacy
+  promptTokens?: number; // New naming
+  completionTokens?: number; // New naming
   totalTokens: number;
 }
 

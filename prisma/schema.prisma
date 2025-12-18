@@ -182,3 +182,73 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// AIInteraction model - tracks all AI/RAG generations
+model AIInteraction {
+  id              String   @id @default(cuid())
+  userId          String   // user who made the request
+  tenantId        String?  // for multi-tenancy
+  requestId       String   @unique // unique request identifier for tracing
+
+  // Request details
+  query           String   // user's query/prompt
+  channel         String?  // email, sms, push, in_app
+  category        String?  // transactional, marketing, system, alert
+  context         Json?    // additional context provided
+
+  // RAG configuration
+  topK            Int      @default(5)
+  scoreThreshold  Float    @default(0.7)
+  temperature     Float    @default(0.7)
+  maxTokens       Int      @default(1000)
+
+  // Response details
+  response        String?  // generated notification content
+  success         Boolean  @default(true)
+  errorMessage    String?
+
+  // Sources/citations
+  sources         Json?    // array of retrieved sources with scores
+  sourcesCount    Int      @default(0)
+
+  // Performance metrics
+  latencyMs       Int      // total generation time
+  retrievalMs     Int?     // retrieval time
+  generationMs    Int?     // LLM generation time
+
+  // Cost metrics
+  model           String?  // LLM model used
+  tokensInput     Int      @default(0)
+  tokensOutput    Int      @default(0)
+  tokensTotal     Int      @default(0)
+  cost            Float    @default(0) // in dollars
+
+  // Metadata
+  endpoint        String   @default("generate-notification") // which endpoint was used
+  ipAddress       String?
+  userAgent       String?
+  correlationId   String?  // for distributed tracing
+
+  // Timestamps
+  createdAt       DateTime @default(now())
+
+  // Indexes for analytics queries
+  @@index([userId])
+  @@index([tenantId])
+  @@index([channel])
+  @@index([category])
+  @@index([success])
+  @@index([createdAt])
+  @@index([model])
+
+  // Composite indexes for common query patterns
+  @@index([userId, createdAt(sort: Desc)]) // User's interaction history
+  @@index([tenantId, createdAt(sort: Desc)]) // Tenant's interaction history
+  @@index([userId, success, createdAt]) // User's success rate over time
+  @@index([channel, category, createdAt]) // Channel/category analytics
+  @@index([createdAt, success]) // Daily success rate
+  @@index([model, createdAt]) // Cost analysis by model
+  @@index([correlationId, createdAt]) // Trace requests
+
+  @@map("ai_interactions")
+}

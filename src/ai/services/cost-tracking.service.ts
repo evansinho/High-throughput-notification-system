@@ -67,8 +67,8 @@ export class CostTrackingService {
 
     return filtered.reduce(
       (sum, m) => ({
-        inputTokens: sum.inputTokens + m.tokenUsage.inputTokens,
-        outputTokens: sum.outputTokens + m.tokenUsage.outputTokens,
+        inputTokens: sum.inputTokens + (m.tokenUsage.inputTokens ?? m.tokenUsage.promptTokens ?? 0),
+        outputTokens: sum.outputTokens + (m.tokenUsage.outputTokens ?? m.tokenUsage.completionTokens ?? 0),
         totalTokens: sum.totalTokens + m.tokenUsage.totalTokens,
       }),
       { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
